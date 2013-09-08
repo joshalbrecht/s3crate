@@ -1,8 +1,5 @@
 package com.codexica.s3crate.filetree
 
-import com.codexica.s3crate.filetree.ListenableFileTree
-import com.codexica.s3crate.filetree.FilePathEvent
-
 //TODO: sort events in a priority queue based on the time of modification
 //TODO: make a new method on the FileSystem for watching for changes
 /**

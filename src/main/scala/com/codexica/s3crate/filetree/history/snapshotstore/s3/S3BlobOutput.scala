@@ -5,17 +5,18 @@ import com.codexica.encryption.EncryptionDetails
 import java.io.{InputStream, FileOutputStream, BufferedOutputStream, File}
 import java.security.MessageDigest
 import scala.collection.mutable
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class S3BlobOutput(s3: S3Interface) extends BlobOutput {
+class S3BlobOutput(s3: S3Interface, ec: ExecutionContext) extends BlobOutput {
+  implicit val context = ec
 
   //file bigger than 128MB? Don't try to upload that as one big thing, it's going to take forever and fail.
   private val MULTIPART_CUTOFF_BYTES = 128 * 1024 * 1024
 
-  override def save(data: InputStream, wasZipped: Boolean, encryptionDetails: EncryptionDetails): Future[DataBlob] = Future {
+  override def save(data: InputStream): Future[String] = Future {
 
     //store blob in a random location, really doesn't matter
     val blobLocation = randomBlobLocation()
@@ -36,7 +37,7 @@ class S3BlobOutput(s3: S3Interface) extends BlobOutput {
     //clean up the leftover files:
     fileHashes.keys.foreach((file: File) => assert(file.delete()))
 
-    DataBlob(blobLocation, encryptionDetails, wasZipped)
+    blobLocation
   }
 
   /**

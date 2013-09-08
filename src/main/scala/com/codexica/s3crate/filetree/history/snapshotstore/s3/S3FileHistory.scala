@@ -6,22 +6,19 @@ import com.codexica.s3crate.filetree.{ReadableFileTree, FilePath, WritableFileTr
 import scala.concurrent.{ExecutionContext, Future}
 import com.codexica.s3crate.filesystem.remote.RemoteFileSystemTypes
 import com.codexica.s3crate.FutureUtils
-import org.xerial.snappy.SnappyInputStream
-import com.codexica.encryption._
 import scala.Some
-import com.codexica.encryption.SimpleEncryption
-import com.codexica.encryption.NoEncryption
-import java.io.InputStream
+import com.typesafe.config.ConfigFactory
+import java.io.File
+import org.apache.commons.io.FileUtils
+import com.codexica.encryption.{RSA, KeyPair, Encryption}
+import org.jets3t.service.security.AWSCredentials
+import org.jets3t.service.impl.rest.httpclient.RestS3Service
+import org.jets3t.service.model.S3Bucket
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
 class S3FileHistory private (store: S3SnapshotStore)(implicit val ec: ExecutionContext) extends FileTreeHistory {
-
-  //ratio of ( compressed size / original size ). If less than this ratio, it's worth it to encrypt
-  val COMPRESSION_RATIO = 0.7
-  //how/whether to encrypt the data at all
-  val ENCRYPTION_METHOD: EncryptionMethod = SimpleEncryption()
 
   //lock for modifying either of the maps:
   private val snapshotLock: AnyRef = new Object()
@@ -78,43 +75,10 @@ class S3FileHistory private (store: S3SnapshotStore)(implicit val ec: ExecutionC
 
   def update(path: FilePath, fileTree: ReadableFileTree): Future[FileSnapshot] = {
     fileTree.metadata(path).flatMap(pathState => {
-
-      //get the input and output
-      val output = store.saveBlob(path, pathState)
-      val input = fileTree.read(path)
-
-      //don't bother compressing unless we get at least a 30% savings in space
-      //the purpose of this is to ignore compression for already encoded binaries (mp3, jpg, zips, etc)
-      val numBytesToTryCompressing = 256 * 1024
-      val shouldZip = compressionRatio(fileTree.read(path), numBytesToTryCompressing) < COMPRESSION_RATIO
-
-      //if we need to zip, compress the data
-      val compressedStream = shouldZip match {
-        case true => new SnappyInputStream(input)
-        case false => input
-      }
-
-      //check our current encryption policy and encrypt as necessary:
-      val encryption = ENCRYPTION_METHOD
-
-      val key = encryption match {
-        case NoEncryption() => new Array[Byte](0)
-        case SimpleEncryption() => randomBlobKey()
-      }
-
-      val encryptedInput = encryption match {
-        case NoEncryption() => compressedStream
-        case SimpleEncryption() => Encryption.encryptStream(key, compressedStream)
-      }
-
-      //encrypt the key
-      val encryptedKey = encryptKey(key).toList
-
-      //ServiceUtils.toBase64
-      val encryptionDetails = EncryptionDetails(encryptedKey, encryption)
-
-      output.save(encryptedInput, shouldZip, encryptionDetails).flatMap(blob => {
-        store.saveSnapshot(path, pathState, blob).map(snapshot => {
+      store.saveBlob(path, pathState, () => { fileTree.read(path) }).flatMap(blob => {
+        //get previous version
+        val previous = previousVersion(path).map(_.id)
+        store.saveSnapshot(path, pathState, blob, previous).map(snapshot => {
           //now safe to update the in-memory map
           snapshotLock.synchronized {
             allSnapshots.put(snapshot.id, snapshot)
@@ -132,21 +96,7 @@ class S3FileHistory private (store: S3SnapshotStore)(implicit val ec: ExecutionC
 
   def download(snapshot: FileSnapshot, output: WritableFileTree): Future[FilePathState] = throw new NotImplementedError()
 
-  //TODO: be sure to close the stream
-  private def compressionRatio(stream: InputStream, numBytes: Int): Double = {
-    //    val bytes = new Array[Byte](numBytes)
-    //    val numBytesRead = stream.read(bytes)
-    //    //TODO:  use snappy to compress and compare with the number of bytes read
-    //    0.0
-    throw new NotImplementedError()
-  }
-
-  private def randomBlobKey(): Array[Byte] = {
-    throw new NotImplementedError()
-  }
-
-  //encode the key using the public key so that only someone with the private key can decrypt the contents
-  private def encryptKey(blobKey: Array[Byte]): Array[Byte] = {
+  protected def previousVersion(path: FilePath): Option[FileSnapshot] = {
     throw new NotImplementedError()
   }
 }
@@ -160,9 +110,23 @@ object S3FileHistory {
    * @param ec The context in which futures should be executed
    * @return The fully initialized file history backed by S3
    */
-  def initialize(ec: ExecutionContext): Future[S3FileHistory] = {
+  def initialize(ec: ExecutionContext, remotePrefix: String): Future[S3FileHistory] = {
     implicit val context = ec
-    val store = new S3FileHistory(new S3SnapshotStore())
+    //TODO:  move this configuration somewhere better
+    val config = ConfigFactory.parseFile(new File(FileUtils.getUserDirectory, "aws.conf")).withFallback(ConfigFactory.load())
+    val bucketName = "joshalbrecht.test"
+    val metaPublicKey = Encryption.generatePublicKey()
+    val metaPrivateKey = Encryption.generatePublicKey()
+    val metaKeys = KeyPair(metaPublicKey, metaPrivateKey, RSA())
+    val blobPublicKey = Encryption.generatePublicKey()
+    val blobPrivateKey = Encryption.generatePublicKey()
+    val blobKeys = KeyPair(blobPublicKey, blobPrivateKey, RSA())
+    val awsAccessKey = config.getString("aws.access_key")
+    val awsSecretKey = config.getString("aws.secret_key")
+    val awsCredentials = new AWSCredentials(awsAccessKey, awsSecretKey)
+    val s3Service = new RestS3Service(awsCredentials)
+    val bucket = s3Service.getOrCreateBucket(bucketName, S3Bucket.LOCATION_US_WEST)
+    val store = new S3FileHistory(new S3SnapshotStore(new S3Interface(s3Service, bucket), remotePrefix, ec, metaKeys, blobKeys))
     val booted = store.init()
     booted.map(_ => store)
   }

@@ -66,4 +66,12 @@ class S3Interface(s3: RestS3Service, bucket: S3Bucket) {
     input.close()
     output.close()
   }
+
+  /**
+   * @param path Download the data from this path
+   * @param file And save it into this file
+   */
+  def download(path: String, file: File) {
+    download(s3.getObject(bucket.getName, path), file)
+  }
 }

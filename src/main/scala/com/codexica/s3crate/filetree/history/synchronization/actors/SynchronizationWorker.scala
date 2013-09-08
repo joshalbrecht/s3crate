@@ -1,11 +1,8 @@
 package com.codexica.s3crate.filetree.history.synchronization.actors
 
 import akka.actor.{ReceiveTimeout, ActorRef, Actor}
-import com.codexica.s3crate.filesystem.ReadableFile
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
-import com.google.common.base.Throwables
-import java.io.ByteArrayInputStream
 import scala.concurrent.duration._
 import com.codexica.s3crate.filetree.ReadableFileTree
 import com.codexica.s3crate.filetree.history.{FilePathState, FileTreeHistory}
@@ -81,7 +78,7 @@ class SynchronizationWorker(synchronizer: ActorRef, fileTree: ReadableFileTree, 
           case Success(_) => {}
           case Failure(t) => {
             //TODO:  what should we do if the task failed?  retry? send it back to the dispatcher?
-            Throwables.propagate(t)
+            throw t
           }
         }
       })

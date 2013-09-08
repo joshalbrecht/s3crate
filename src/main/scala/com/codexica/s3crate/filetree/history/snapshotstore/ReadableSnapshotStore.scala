@@ -2,9 +2,7 @@ package com.codexica.s3crate.filetree.history.snapshotstore
 
 import scala.concurrent.Future
 import com.codexica.s3crate.filesystem.remote.RemoteFileSystemTypes
-import java.io.InputStream
 import com.codexica.s3crate.filetree.{FilePath, WritableFileTree}
-import com.codexica.s3crate.filetree.history.snapshotstore.FileSnapshot
 
 /**
  * Interface for listing and reading snapshots in the storage system.

@@ -14,13 +14,8 @@ import com.codexica.s3crate.filetree.FilePathEvent
 import com.codexica.s3crate.filetree.SymLinkType
 import com.codexica.s3crate.filetree.FileType
 import com.codexica.s3crate.filetree.FolderType
-import com.codexica.s3crate.filetree.FilePathEvent
-import com.codexica.s3crate.filetree.SymLinkType
-import com.codexica.s3crate.filetree.FileType
-import com.codexica.s3crate.filetree.FolderType
 import scala.util.control.NonFatal
 import com.codexica.s3crate.{UnexpectedError, S3CrateError}
-import com.google.common.base.Throwables
 
 /**
  * A locally mounted file system. Should be accessibly by working with java.io.File's
@@ -38,7 +33,7 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
   def getSymLinkPath(file: File): Option[FilePath]
 
   //TODO: eventually use the fancier "file watcher" mechanism
-  def listen(): PathGenerator = {
+  override def listen(): PathGenerator = {
     //list all of the files
     val initialFiles = FileUtils.listFilesAndDirs(baseFolder, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE).par.map(file => {
       FilePathEvent(getFilePath(file), getLastModified(file))
@@ -46,25 +41,11 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
     new PathGenerator(initialFiles, this)
   }
 
-  def read(path: FilePath, output: OutputStream): Future[Unit] = Future {
-    var input: InputStream = null
-    try {
-      input = new FileInputStream(getFile(path))
-      IOUtils.copy(input, output)
-      output.close()
-    } catch {
-      case e: IOError => throw new InaccessibleDataError("Failure reading from file tree", e)
-      case e: S3CrateError => throw e
-      case NonFatal(e) => throw new UnexpectedError("Unexpected error while reading from file tree", e)
-    } finally {
-      if (input != null) {
-        IOUtils.closeQuietly(input)
-      }
-      IOUtils.closeQuietly(output)
-    }
+  override def read(path: FilePath): SafeInputStream = {
+    new SafeInputStream(new FileInputStream(getFile(path)))
   }
 
-  def metadata(path: FilePath): Future[FilePathState] = Future {
+  override def metadata(path: FilePath): Future[FilePathState] = Future {
     try {
       val file = getFile(path)
       val exists = file.exists()
@@ -97,7 +78,7 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
     }
   }
 
-  def getLastModified(file: File): DateTime = {
+  protected[this] def getLastModified(file: File): DateTime = {
     val attributes = Files.readAttributes(Paths.get(file.getAbsolutePath), "lastModifiedTime", LinkOption.NOFOLLOW_LINKS)
     attributes.get("lastModifiedTime") match {
       case lastModified: FileTime => new DateTime(lastModified.toMillis, DateTimeZone.UTC)
