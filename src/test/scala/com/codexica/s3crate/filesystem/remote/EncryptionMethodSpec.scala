@@ -2,7 +2,7 @@ package com.codexica.s3crate.filesystem.remote
 
 import play.api.libs.json.Json
 import org.specs2.mutable.Specification
-import com.codexica.s3crate.common.models.{SimpleEncryption, EncryptionMethod}
+import com.codexica.encryption.{SimpleEncryption, EncryptionMethod}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)

@@ -6,6 +6,10 @@ import java.util.UUID
 import com.codexica.s3crate.filesystem.{Created}
 import org.joda.time.DateTime
 import com.codexica.s3crate.common.models._
+import com.codexica.s3crate.filetree.{FileMetaData, FilePath}
+import com.codexica.s3crate.filetree.history.FilePathState
+import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, FileSnapshot}
+import com.codexica.encryption.{EncryptionDetails, SimpleEncryption}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
