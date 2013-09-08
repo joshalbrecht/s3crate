@@ -15,7 +15,7 @@ class TaskMaster(synchronizer: ActorRef, generator: PathGenerator, sourceFileSys
   import context.dispatcher
 
   def receive = {
-    case WorkRequest => {
+    case WorkRequest() => {
       //no need to reply unless there is actually some work to do
       if (generator.hasNext) {
         val event = generator.next()

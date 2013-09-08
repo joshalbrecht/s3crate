@@ -1,7 +1,7 @@
 package com.codexica.s3crate
 
 import com.codexica.s3crate.filesystem.{PathGenerator, FilePathEvent, LocalFileSystem}
-import scala.concurrent.{ExecutionContext, Promise, Future}
+import scala.concurrent.{Await, ExecutionContext, Promise, Future}
 import scala.collection.generic.CanBuildFrom
 import scala.util.{Failure, Success}
 import com.google.common.base.Throwables
@@ -15,6 +15,10 @@ import org.jets3t.service.impl.rest.httpclient.RestS3Service
 import org.jets3t.service.model.S3Bucket
 import com.codexica.s3crate.filesystem.remote.{S3Interface, RemoteFileSystem}
 import java.io.File
+import org.apache.commons.io.FileUtils
+import com.typesafe.config.ConfigFactory
+import scala.concurrent.duration.Duration
+import com.codexica.s3crate.actors.messages.InitializationMessage
 
 sealed trait SynchronizationDirection
 case class Upload() extends SynchronizationDirection
@@ -34,15 +38,18 @@ object S3Crate {
 
     val direction: SynchronizationDirection = Upload()
 
-    val awsAccessKey = "FILL ME IN"
-    val awsSecretKey = "FILL ME IN"
-    val bucketName = "FILL ME IN"
-    val s3Prefix = "FILL ME IN"
+    System.setProperty("config.resource", "/dev.conf")
+
+    val config = ConfigFactory.parseFile(new File(FileUtils.getUserDirectory, "aws.conf")).withFallback(ConfigFactory.load())
+    val awsAccessKey = config.getString("aws.access_key")
+    val awsSecretKey = config.getString("aws.secret_key")
+    val bucketName = "joshalbrecht.test"
+    val s3Prefix = "test/cowdata"
     val metaPublicKey = Encryption.generatePublicKey()
     val metaPrivateKey = Encryption.generatePublicKey()
     val blobPublicKey = Encryption.generatePublicKey()
     val blobPrivateKey = Encryption.generatePublicKey()
-    val baseFolder = "FILL ME IN"
+    val baseFolder = "/home/cow/data"
 
     val awsCredentials = new AWSCredentials(awsAccessKey, awsSecretKey)
     val s3Service = new RestS3Service(awsCredentials)
@@ -60,7 +67,9 @@ object S3Crate {
 
     //wait for everything to be loaded
     implicit val ec = Contexts.system.dispatchers.defaultGlobalDispatcher
-    FutureUtils.sequenceOrBailOut(List(s3InitFuture, localInitFuture)).onComplete({
+    val bootFuture = FutureUtils.sequenceOrBailOut(List(s3InitFuture, localInitFuture))
+    Await.ready(bootFuture, Duration.Inf)
+    bootFuture.value.get match {
       case Success(results) => {
         //combine all the paths
         val allPaths = results.fold(Set[FilePathEvent]())((a, b) => {a ++ b})
@@ -74,21 +83,20 @@ object S3Crate {
         //make a bunch of file-inspector actors that work through the paths and respond appropriately
         //val synchronizer = Akka.system.actorOf(injector.getInstance(classOf[Prop[Synchronizer]]), "Synchronizer")
 
-        val synchronizer = Contexts.system.actorOf(Props.apply({new Synchronizer(generator, sourceFileSystem, destFileSystem)}))
-
-        //TODO:  could return so that people could shut down in an orderly way
-        while (!synchronizer.isTerminated) {
-          Thread.sleep(60 * 1000)
-        }
+        val synchronizer = Contexts.system.actorOf(Props.apply({new Synchronizer(generator, sourceFileSystem, destFileSystem)}), "Synchronizer")
+        synchronizer ! InitializationMessage()
+        //TODO:  figure out how to shutdown in an orderly way
+        Contexts.system.awaitTermination()
       }
       case Failure(t) => {
         Throwables.propagate(t)
       }
-    })
+    }
+    val x = 4
   }
 
   def main(args: Array[String]) {
-
+    bootAndBlock()
   }
 }
 

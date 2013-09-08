@@ -3,7 +3,7 @@ package com.codexica.s3crate.actors
 import com.codexica.s3crate.filesystem.{PathGenerator, FileSystem, FilePathEvent}
 import akka.actor.{Props, Actor}
 import akka.routing.RoundRobinRouter
-import com.codexica.s3crate.actors.messages.{PathTask, WorkRequest}
+import com.codexica.s3crate.actors.messages.{TaskComplete, InitializationMessage, PathTask, WorkRequest}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -14,19 +14,21 @@ class Synchronizer(generator: PathGenerator, sourceFileSystem: FileSystem, destF
   val NUM_WORKERS = 4
 
   //Create the task master actor
-  val taskMaster = context.actorOf(Props.apply({new TaskMaster(self, generator, sourceFileSystem, destFileSystem)}))
+  val taskMaster = context.actorOf(Props.apply({new TaskMaster(self, generator, sourceFileSystem, destFileSystem)}), "TaskMaster")
 
   //Create a bunch of workers:
   val workers = context.actorOf(Props.apply({new SynchronizationWorker(self, sourceFileSystem, destFileSystem)})
-    .withRouter(RoundRobinRouter(nrOfInstances = NUM_WORKERS)))
-
-  //start the chain off by sending a bunch of work requests to the task master (one for each worker)
-  (0 until NUM_WORKERS).foreach(i => workers ! WorkRequest())
+    .withRouter(RoundRobinRouter(nrOfInstances = NUM_WORKERS)), "WorkerPool")
 
   /**
    * Just send events back and forth appropriately
    */
   def receive = {
+    case m: InitializationMessage => {
+      //start the chain off by sending a bunch of work requests to the task master (one for each worker)
+      (0 until NUM_WORKERS).foreach(i => workers ! TaskComplete())
+    }
+
     //if we get work requests, send them along to the taskmaster.  This is silly.
     case m: WorkRequest => taskMaster forward m
 

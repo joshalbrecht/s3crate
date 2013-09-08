@@ -25,7 +25,7 @@ class SynchronizationWorker(synchronizer: ActorRef, sourceFileSystem: FileSystem
   def receive = {
     //when nothing has happened in a while and we're not busy, start working, or request some more work if we don't
     //have any more work
-    case ReceiveTimeout => {
+    case m: ReceiveTimeout => {
       if (!working) {
         if (pendingTasks.size > 0) {
           handleTask()
@@ -35,7 +35,7 @@ class SynchronizationWorker(synchronizer: ActorRef, sourceFileSystem: FileSystem
       }
     }
     //when we're done working, begin the next task if there is one, otherwise request more work
-    case TaskComplete => {
+    case m: TaskComplete => {
       working = false
       handleTask()
       if (!working) {

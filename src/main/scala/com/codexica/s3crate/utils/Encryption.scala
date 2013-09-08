@@ -30,7 +30,8 @@ object Encryption {
   }
 
   def generatePublicKey(): Array[Byte] = {
-    throw new NotImplementedError()
+    //throw new NotImplementedError()
+    "dsafadsfsd".getBytes
   }
 
   def generateSymmetricKey(): Array[Byte] = {

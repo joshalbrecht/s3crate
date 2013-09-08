@@ -10,6 +10,8 @@ import com.google.common.base.Throwables
 import scala.util.{Success, Failure}
 import java.nio.file.{Paths, Path, LinkOption, Files}
 import org.joda.time.{DateTimeZone, DateTime}
+import java.nio.file.attribute.FileTime
+import akka.dispatch.Futures
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -21,21 +23,15 @@ class LocalFileSystem(baseFolder: File) extends FileSystem {
   implicit val context = Contexts.fileOperations
 
   override def start(): Future[Set[FilePathEvent]] = Future {
-    val files = FileUtils.listFilesAndDirs(baseFolder, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE)
-    val futures = files.toList.map((file: File) => getFilePath(file)).map((filePath: FilePath) => Future {
+    FileUtils.listFilesAndDirs(baseFolder, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE)
+  }.map(files => {
+    Future.sequence(files.toList.map((file: File) => getFilePath(file)).map((filePath: FilePath) => Future {
       val attributes = Files.readAttributes(Paths.get(getFile(filePath).getAbsolutePath), "lastModifiedTime", LinkOption.NOFOLLOW_LINKS)
-      val lastModifiedUtcMillis = attributes.get("lastModifiedTime").asInstanceOf[Long]
-      FilePathEvent(filePath, new DateTime(lastModifiedUtcMillis, DateTimeZone.UTC))
-    })
-    var pathEvents: Set[FilePathEvent] = Set()
-    FutureUtils.sequenceOrBailOut(futures).onComplete({
-      case Success(snapshotList) => {
-        pathEvents = snapshotList.toSet
+      attributes.get("lastModifiedTime") match {
+        case lastModified: FileTime => FilePathEvent(filePath, new DateTime(lastModified.toMillis, DateTimeZone.UTC))
       }
-      case Failure(t) => Throwables.propagate(t)
-    })
-    pathEvents
-  }
+    })).map(_.toSet)
+  }).flatMap(x => x)
 
   override def snapshot(path: FilePath): Future[Option[FileSnapshot]] = Future {
     //TODO: implement
