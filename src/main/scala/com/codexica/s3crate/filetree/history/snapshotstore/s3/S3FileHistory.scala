@@ -1,10 +1,9 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
 import com.codexica.s3crate.filetree.history.{FilePathState, FileTreeHistory}
-import com.codexica.s3crate.filetree.history.snapshotstore.FileSnapshot
+import com.codexica.s3crate.filetree.history.snapshotstore.{RemoteFileSystemTypes, FileSnapshot}
 import com.codexica.s3crate.filetree.{ReadableFileTree, FilePath, WritableFileTree}
 import scala.concurrent.{ExecutionContext, Future}
-import com.codexica.s3crate.filesystem.remote.RemoteFileSystemTypes
 import com.codexica.s3crate.FutureUtils
 import scala.Some
 import com.typesafe.config.ConfigFactory

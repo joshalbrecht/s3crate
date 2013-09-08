@@ -13,7 +13,7 @@ import java.nio.file.attribute.PosixFilePermission
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class RemoteSnapshotSpec extends Specification {
+class FileSnapshotSpec extends Specification {
   "Serialization" should {
     "deserialize as exactly the same value" in {
       val state = FilePathState(

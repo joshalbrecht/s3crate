@@ -1,4 +1,4 @@
-package com.codexica.s3crate.filesystem.remote
+package com.codexica.s3crate.filetree.history.snapshotstore
 
 import java.util.UUID
 import play.api.libs.json._

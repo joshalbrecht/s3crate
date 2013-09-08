@@ -3,7 +3,7 @@ package com.codexica.s3crate.filetree.history.snapshotstore.s3
 import com.codexica.s3crate.filetree.history.snapshotstore._
 import scala.concurrent.{ExecutionContext, Future}
 import java.io.{FileOutputStream, BufferedOutputStream, File, InputStream}
-import com.codexica.s3crate.filesystem.remote.RemoteFileSystemTypes
+import RemoteFileSystemTypes
 import com.codexica.s3crate.filetree.{WritableFileTree, FilePath}
 import com.codexica.encryption._
 import com.codexica.s3crate.{FutureUtils, Contexts}

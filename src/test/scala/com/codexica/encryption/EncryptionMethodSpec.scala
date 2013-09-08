@@ -1,4 +1,4 @@
-package com.codexica.s3crate.filesystem.remote
+package com.codexica.encryption
 
 import play.api.libs.json.Json
 import org.specs2.mutable.Specification

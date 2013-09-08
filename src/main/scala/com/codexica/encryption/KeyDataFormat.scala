@@ -3,7 +3,7 @@ package com.codexica.encryption
 import play.api.libs.json._
 import org.apache.commons.codec.binary.Base64
 import play.api.data.validation.ValidationError
-import com.codexica.s3crate.filesystem.remote.RemoteFileSystemTypes
+import com.codexica.s3crate.filetree.history.snapshotstore.RemoteFileSystemTypes
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)

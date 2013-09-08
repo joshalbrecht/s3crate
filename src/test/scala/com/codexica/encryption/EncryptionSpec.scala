@@ -1,4 +1,4 @@
-package com.codexica.s3crate
+package com.codexica.encryption
 
 import org.specs2.mutable.Specification
 import org.apache.commons.io.FileUtils
