@@ -2,6 +2,7 @@ package com.codexica.s3crate.filesystem
 
 import scala.concurrent.Future
 import java.io.InputStream
+import com.codexica.s3crate.common.models.{FilePathState, FilePathEvent, FilePath}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -19,7 +20,7 @@ trait FileSystem {
    * @param event Given this path
    * @return Return a snapshot if it exists and can be read.
    */
-  def snapshot(event: FilePath): Future[Option[FileSnapshot]]
+  def snapshot(event: FilePath): Future[Option[FilePathState]]
 
   /**
    * @param data read from this stream and write it to the filesystem
@@ -28,7 +29,7 @@ trait FileSystem {
    * @throws exceptions if retries have been exhausted and this just absolutely cannot be written, or if file path
    *                    is invalid, deleted, or you don't have permission to read or write
    */
-  def write(data: ReadableFile, snapshot: FileSnapshot): Future[Unit]
+  def write(data: ReadableFile, snapshot: FilePathState): Future[Unit]
 
   /**
    * Note that this function should NOT throw any exceptions or errors as you try to read the data!  It should return

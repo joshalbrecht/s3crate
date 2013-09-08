@@ -1,14 +1,15 @@
-package com.codexica.s3crate.filesystem.remote
+package com.codexica.s3crate.common.models
 
 import com.codexica.s3crate.filesystem.ReadableFile
 import play.api.libs.json.Json
+import com.codexica.s3crate.filesystem.remote.{RemoteFileSystemTypes}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-case class RemoteBlobData(
+case class DataBlob(
    location: RemoteFileSystemTypes.S3Path,
-   encryption: RemoteEncryptionDetails,
+   encryption: EncryptionDetails,
    isZipped: Boolean
  ) {
 
@@ -18,6 +19,6 @@ case class RemoteBlobData(
   }
 }
 
-object RemoteBlobData {
-  implicit val format = Json.format[RemoteBlobData]
+object DataBlob {
+  implicit val format = Json.format[DataBlob]
 }

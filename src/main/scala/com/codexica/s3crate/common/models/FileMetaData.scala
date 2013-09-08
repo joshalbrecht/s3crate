@@ -1,4 +1,4 @@
-package com.codexica.s3crate.filesystem
+package com.codexica.s3crate.common.models
 
 import org.joda.time.DateTime
 import play.api.libs.json.Json

@@ -1,4 +1,7 @@
-package com.codexica.s3crate.filesystem
+package com.codexica.s3crate.common
+
+import com.codexica.s3crate.common.models.FilePathEvent
+import com.codexica.s3crate.common.interfaces.ListenableFileTree
 
 //TODO: sort events in a priority queue based on the time of modification
 //TODO: make a new method on the FileSystem for watching for changes
@@ -8,7 +11,7 @@ package com.codexica.s3crate.filesystem
  * of the file (oldest should be synchronized first
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class PathGenerator(allPaths: Set[FilePathEvent], files: FileSystem) {
+class PathGenerator(allPaths: Set[FilePathEvent], files: ListenableFileTree) {
 
   private val iterator = allPaths.iterator
 

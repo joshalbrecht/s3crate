@@ -1,4 +1,4 @@
-package com.codexica.s3crate.filesystem.remote
+package com.codexica.s3crate.common.models
 
 import com.codexica.s3crate.utils.SealedTraitFormat
 

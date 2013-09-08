@@ -1,23 +1,24 @@
 package com.codexica.s3crate.actors
 
-import com.codexica.s3crate.filesystem.{PathGenerator, FileSystem, FilePathEvent}
 import akka.actor.{Props, Actor}
 import akka.routing.RoundRobinRouter
 import com.codexica.s3crate.actors.messages.{TaskComplete, InitializationMessage, PathTask, WorkRequest}
+import com.codexica.s3crate.common.{PathGenerator}
+import com.codexica.s3crate.common.interfaces.{ReadableFileTree, FileTreeHistory}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class Synchronizer(generator: PathGenerator, sourceFileSystem: FileSystem, destFileSystem: FileSystem)
+class Synchronizer(generator: PathGenerator, fileTree: ReadableFileTree, treeHistory: FileTreeHistory)
   extends Actor {
 
   val NUM_WORKERS = 4
 
   //Create the task master actor
-  val taskMaster = context.actorOf(Props.apply({new TaskMaster(self, generator, sourceFileSystem, destFileSystem)}), "TaskMaster")
+  val taskMaster = context.actorOf(Props.apply({new TaskMaster(self, generator, fileTree, treeHistory)}), "TaskMaster")
 
   //Create a bunch of workers:
-  val workers = context.actorOf(Props.apply({new SynchronizationWorker(self, sourceFileSystem, destFileSystem)})
+  val workers = context.actorOf(Props.apply({new SynchronizationWorker(self, fileTree, treeHistory)})
     .withRouter(RoundRobinRouter(nrOfInstances = NUM_WORKERS)), "WorkerPool")
 
   /**

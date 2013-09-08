@@ -2,15 +2,17 @@ package com.codexica.s3crate.actors
 
 import akka.actor.{ActorRef, Actor}
 import com.codexica.s3crate.actors.messages.{PathTask, WorkRequest}
-import com.codexica.s3crate.filesystem.{PathGenerator, FilePathEvent, FileSystem}
 import scala.util.{Failure, Success}
 import com.codexica.s3crate.utils.FutureUtils
 import com.google.common.base.Throwables
+import com.codexica.s3crate.common.{PathGenerator}
+import com.codexica.s3crate.common.interfaces.{ReadableFileTree, FileTreeHistory}
 
+//TODO:  this class should be responsible for making sure that EVERYTHING gets up there, logging errors if not, deleting old snapshots, etc
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class TaskMaster(synchronizer: ActorRef, generator: PathGenerator, sourceFileSystem: FileSystem, destFileSystem: FileSystem) extends Actor {
+class TaskMaster(synchronizer: ActorRef, generator: PathGenerator, fileTree: ReadableFileTree, treeHistory: FileTreeHistory) extends Actor {
 
   import context.dispatcher
 
@@ -20,8 +22,8 @@ class TaskMaster(synchronizer: ActorRef, generator: PathGenerator, sourceFileSys
       if (generator.hasNext) {
         val event = generator.next()
         //generate metadata for each of the filesystems
-        val sourceMetaFuture = sourceFileSystem.snapshot(event.path)
-        val destMetaFuture = destFileSystem.snapshot(event.path)
+        val sourceMetaFuture = fileTree.metadata(event.path)
+        val destMetaFuture = treeHistory.metadata(event.path)
         FutureUtils.sequenceOrBailOut(List(sourceMetaFuture, destMetaFuture)).onComplete({
           case Success(List(sourceMeta, destMeta)) => {
             //respond with a PathTask

@@ -1,28 +1,23 @@
 package com.codexica.s3crate
 
-import com.codexica.s3crate.filesystem.{PathGenerator, FilePathEvent, LocalFileSystem}
-import scala.concurrent.{Await, ExecutionContext, Promise, Future}
-import scala.collection.generic.CanBuildFrom
+//import com.codexica.s3crate.filesystem.{PathGenerator, FilePathEvent, LocalFileSystem}
+import scala.concurrent.Await
 import scala.util.{Failure, Success}
 import com.google.common.base.Throwables
 import com.codexica.s3crate.actors.Synchronizer
 import akka.actor.{Props, Actor}
-import scala.sys.Prop.Creator
-import scala.sys.Prop
 import com.codexica.s3crate.utils.{Encryption, Contexts, FutureUtils}
 import org.jets3t.service.security.AWSCredentials
 import org.jets3t.service.impl.rest.httpclient.RestS3Service
 import org.jets3t.service.model.S3Bucket
-import com.codexica.s3crate.filesystem.remote.{S3Interface, RemoteFileSystem}
+import com.codexica.s3crate.common.models.{Upload, SynchronizationDirection}
+
+//import com.codexica.s3crate.filesystem.remote.{S3Interface, RemoteFileSystem}
 import java.io.File
 import org.apache.commons.io.FileUtils
 import com.typesafe.config.ConfigFactory
 import scala.concurrent.duration.Duration
 import com.codexica.s3crate.actors.messages.InitializationMessage
-
-sealed trait SynchronizationDirection
-case class Upload() extends SynchronizationDirection
-case class Download() extends SynchronizationDirection
 
 object S3Crate {
 

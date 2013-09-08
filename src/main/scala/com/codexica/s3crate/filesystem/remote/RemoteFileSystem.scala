@@ -5,16 +5,16 @@ import scala.concurrent.Future
 import java.util.UUID
 import com.codexica.s3crate.utils.{FutureUtils, Encryption, Contexts}
 import com.codexica.s3crate.filesystem._
-import com.codexica.s3crate.filesystem.FilePath
-import com.codexica.s3crate.filesystem.FileSnapshot
 import scala.Some
-import com.codexica.s3crate.filesystem.FilePathEvent
 import org.xerial.snappy.SnappyInputStream
 import java.security.MessageDigest
 import scala.collection.mutable
 import play.api.libs.json.Json
 import org.apache.commons.io.FileUtils
 import org.jets3t.service.utils.ServiceUtils
+import com.codexica.s3crate.common.models._
+import scala.Some
+import com.codexica.s3crate.common.models.FilePathEvent
 
 //TODO: would be nice for this to support resumption of previous multi-part uploads
 /**
@@ -50,7 +50,7 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
   private val latestSnapshots = scala.collection.mutable.HashMap.empty[FilePath, RemoteFileSystemTypes.SnapshotId]
 
   //mapping from version to associated metadata
-  private val allSnapshots = scala.collection.mutable.HashMap.empty[RemoteFileSystemTypes.SnapshotId, RemoteSnapshot]
+  private val allSnapshots = scala.collection.mutable.HashMap.empty[RemoteFileSystemTypes.SnapshotId, FileSnapshot]
 
   /**
    * load everything from S3 into one big map of S3Snapshots (which contain FileSnapshots, among many other things)
@@ -81,7 +81,7 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
     FutureUtils.sequenceOrBailOut(listingTasks).map(listOfFileLists => {
       val events = listOfFileLists.flatten.toSet[File].par.map(file => {
         val jsonData = new String(Encryption.publicDecrypt(FileUtils.readFileToByteArray(file), metaPrivateKey), TEXT_ENCODING)
-        val snapshot = Json.parse(jsonData).as[RemoteSnapshot]
+        val snapshot = Json.parse(jsonData).as[FileSnapshot]
         snapshotLock.synchronized {
           allSnapshots.put(snapshot.id, snapshot)
         }
@@ -119,16 +119,16 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
   /**
    * Just pull it out of the map. Nearly instantaneous
    */
-  override def snapshot(path: FilePath): Future[Option[FileSnapshot]] = Future {
+  override def snapshot(path: FilePath): Future[Option[FilePathState]] = Future {
     snapshotLock.synchronized {
       latestSnapshots.get(path) match {
-        case None => Option.empty[FileSnapshot]
+        case None => Option.empty[FilePathState]
         case Some(id) => allSnapshots.get(id).map(_.fileSnapshot)
       }
     }
   }
 
-  override def write(data: ReadableFile, snapshot: FileSnapshot): Future[Unit] = Future {
+  override def write(data: ReadableFile, snapshot: FilePathState): Future[Unit] = Future {
 
     //get previous version
     val previous = previousVersion(snapshot.path)
@@ -141,7 +141,7 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
     }
 
     //create the remote snapshot meta data
-    val remoteSnapshot = RemoteSnapshot(
+    val remoteSnapshot = FileSnapshot(
       UUID.randomUUID(),
       blobData,
       snapshot,
@@ -194,7 +194,7 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
    * @return (The encryption details, a map from file -> the hash of the file, and a hash of all contents that were written out
    * @throws Exception if there is no data.
    */
-  private def writeBlobToFiles(data: ReadableFile, encryption: EncryptionMethod, chunkSize: Long): (RemoteEncryptionDetails, Map[File, Array[Byte]], Array[Byte]) = {
+  private def writeBlobToFiles(data: ReadableFile, encryption: EncryptionMethod, chunkSize: Long): (EncryptionDetails, Map[File, Array[Byte]], Array[Byte]) = {
     assert(data.length > 0)
 
     val key = encryption match {
@@ -256,7 +256,7 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
     val encryptedKey = encryptKey(key.toArray).toList
 
     //ServiceUtils.toBase64
-    (RemoteEncryptionDetails(encryptedKey, encryption), files.toMap, completeMd5Accumulator.digest())
+    (EncryptionDetails(encryptedKey, encryption), files.toMap, completeMd5Accumulator.digest())
   }
 
   /**
@@ -267,7 +267,7 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
    * @throws a bunch of exceptions from interacting with ReadableFile, which may be concurrently modified by the user
    * @return the associated metadata
    */
-  private def writeBlob(data: ReadableFile): RemoteBlobData = {
+  private def writeBlob(data: ReadableFile): DataBlob = {
     //don't bother compressing unless we get at least a 30% savings in space
     //the purpose of this is to ignore compression for already encoded binaries (mp3, jpg, zips, etc)
     val numBytesToTryCompressing = 256 * 1024
@@ -298,7 +298,7 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
     //clean up the leftover files:
     fileHashes.keys.foreach((file: File) => assert(file.delete()))
 
-    RemoteBlobData(blobLocation, encryptionDetails, shouldZip)
+    DataBlob(blobLocation, encryptionDetails, shouldZip)
   }
 
   private def compressionRatio(stream: InputStream, numBytes: Int): Double = {
@@ -309,7 +309,7 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
     throw new NotImplementedError()
   }
 
-  private def getMetaLocation(snapshot: RemoteSnapshot): String = {
+  private def getMetaLocation(snapshot: FileSnapshot): String = {
     throw new NotImplementedError()
   }
 
@@ -317,7 +317,7 @@ class RemoteFileSystem(s3: S3Interface, remotePrefix: String, metaPublicKey: Arr
     throw new NotImplementedError()
   }
 
-  private def previousVersion(path: FilePath): Option[RemoteSnapshot] = {
+  private def previousVersion(path: FilePath): Option[FileSnapshot] = {
     throw new NotImplementedError()
   }
 

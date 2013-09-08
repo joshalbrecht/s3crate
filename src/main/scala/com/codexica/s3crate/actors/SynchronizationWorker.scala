@@ -2,19 +2,21 @@ package com.codexica.s3crate.actors
 
 import akka.actor.{ReceiveTimeout, ActorRef, Actor}
 import com.codexica.s3crate.actors.messages.{TaskComplete, WorkRequest, PathTask}
-import com.codexica.s3crate.filesystem.{ReadableFile, Deleted, FileSnapshot, FileSystem}
+import com.codexica.s3crate.filesystem.{ReadableFile}
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
 import com.google.common.base.Throwables
 import java.io.ByteArrayInputStream
 import scala.concurrent.duration._
+import com.codexica.s3crate.common.models.FilePathState
+import com.codexica.s3crate.common.interfaces.{ReadableFileTree, FileTreeHistory}
 
 /**
  * Keeps a list of pending tasks. Should not grow very large, since we
  *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class SynchronizationWorker(synchronizer: ActorRef, sourceFileSystem: FileSystem, destFileSystem: FileSystem) extends Actor {
+class SynchronizationWorker(synchronizer: ActorRef, fileTree: ReadableFileTree, treeHistory: FileTreeHistory) extends Actor {
 
   private var pendingTasks = List[PathTask]()
   private var working = false
@@ -53,31 +55,22 @@ class SynchronizationWorker(synchronizer: ActorRef, sourceFileSystem: FileSystem
 
   private def handleTask() {
     if (pendingTasks.size > 0) {
-      val PathTask(path, sourceOpt, destOpt) = pendingTasks.head
+      val PathTask(path, source, dest) = pendingTasks.head
       pendingTasks = pendingTasks.tail
 
-      val operation = sourceOpt match {
-        case Some(source) => {
-          destOpt match {
-            case Some(dest) => {
-              sync(source, dest)
-            }
-            case None => {
-              onDestMissing(source)
-            }
-          }
+      val operation = if (source.exists) {
+        if (dest.exists) {
+          sync(source, dest)
+        } else {
+          onDestMissing(source)
         }
-        case None => {
-          destOpt match {
-            case Some(dest) => {
-              onSourceMissing(dest)
-            }
-            case None => {
-              //TODO:  think about how we could get here and what to do
-              //this should probably throw an exception--it's stupid that you pass two empty paths as work...
-              throw new RuntimeException("Path is not defined in either source: " + path)
-            }
-          }
+      } else {
+        if (dest.exists) {
+          onSourceMissing(dest)
+        } else {
+          //TODO:  think about how we could get here and what to do
+          //this should probably throw an exception--it's stupid that you pass two empty paths as work...
+          throw new RuntimeException("Path is not defined in either source: " + path)
         }
       }
       working = true
@@ -101,7 +94,7 @@ class SynchronizationWorker(synchronizer: ActorRef, sourceFileSystem: FileSystem
    * @param source The source snapshot
    * @param dest The destination snapshot
    */
-  private def sync(source: FileSnapshot, dest: FileSnapshot): Future[Unit] = {
+  private def sync(source: FilePathState, dest: FilePathState): Future[Unit] = {
     if (source == dest) {
       Future.successful()
     } else {
@@ -112,28 +105,28 @@ class SynchronizationWorker(synchronizer: ActorRef, sourceFileSystem: FileSystem
   /**
    * Called when the source is missing. Verify that the destination is in the deleted state
    */
-  private def onSourceMissing(dest: FileSnapshot): Future[Unit] =  {
-    dest.state match {
-      case Deleted() => Future.successful()
-      case _ => {
-        destFileSystem.write(new ReadableFile(() => {new ByteArrayInputStream("".getBytes)}, 0), dest.copy(state = Deleted()))
-      }
+  private def onSourceMissing(dest: FilePathState): Future[Unit] =  {
+    if (dest.exists) {
+      //TODO: stop mapping to Unit and actually send the result back to the task master so that it can mark this as
+      //completed (here and below)
+      treeHistory.delete(dest.path).map(x => Unit)
+    } else {
+      Future.successful()
     }
   }
 
   /**
    * Called when the destination file is missing. Just go create it.
    */
-  private def onDestMissing(source: FileSnapshot): Future[Unit] =  {
+  private def onDestMissing(source: FilePathState): Future[Unit] =  {
     writeToDest(source)
   }
 
-  private def writeToDest(source: FileSnapshot): Future[Unit] = {
-    source.state match {
-      case Deleted() => Future.successful()
-      case _ => {
-        destFileSystem.write(sourceFileSystem.read(source.path), source)
-      }
+  private def writeToDest(source: FilePathState): Future[Unit] = {
+    if (source.exists) {
+      treeHistory.update(source.path, fileTree).map(x => Unit)
+    } else {
+      Future.successful()
     }
   }
 }
