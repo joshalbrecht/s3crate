@@ -72,6 +72,7 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
       }
       FilePathState(path, exists, metadata)
     } catch {
+      case e: S3CrateError => throw e
       //TODO:  improve the list of things that can be thrown here so that all appropriate errors are wrapped
       case e: IOException => throw new InaccessibleDataError("Failure fetching metadata from file tree", e)
       case NonFatal(e) => throw new UnexpectedError("Unexpected error while fetching metadata from file tree", e)

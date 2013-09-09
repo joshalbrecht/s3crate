@@ -28,16 +28,59 @@ class LinuxFileTreeSpec extends Specification {
       FileUtils.write(file, "hello")
       tree.getFileType(file) must be equalTo FileType()
     }
-    "return correctly for symlinks" in new Context {
+    "return SymLinkType() for symlinks" in new Context {
       val file = new File("/tmp/linuxFileTestlink")
+      if (file.exists()) {
+        assert(file.delete())
+      }
       Files.createSymbolicLink(Paths.get(file.getAbsolutePath), Paths.get(FileUtils.getUserDirectoryPath))
       tree.getFileType(file) must be equalTo SymLinkType()
     }
-    "throw an InaccessibleDataError if the user does not have permission to read the file" in new Context {
-      tree.getFileType(new File("/root")) must throwAn[InaccessibleDataError]
+    "throw a FilePermissionError if the user does not have permission to read the file" in new Context {
+      tree.getFileType(new File("/root")) must throwA[FilePermissionError]
     }
     "throw a FileMissingError if the file is missing" in new Context {
       tree.getFileType(new File("/definitely/does/not/exist")) must throwA[FileMissingError]
     }
+  }
+
+  "getting the owner" should {
+    "return the user's name for regular files" in new Context {
+      throw new NotImplementedError()
+    }
+    "throw a FilePermissionError if the user name cannot be determined because of permissions" in new Context {
+      throw new NotImplementedError()
+    }
+    "throw a FileMissingError if the file is missing" in new Context {
+      throw new NotImplementedError()
+    }
+  }
+
+  "getting the group" should {
+    "return the group's name for regular files" in new Context {
+      throw new NotImplementedError()
+    }
+    "throw a FilePermissionError if the group name cannot be determined because of permissions" in new Context {
+      throw new NotImplementedError()
+    }
+    "throw a FileMissingError if the file is missing" in new Context {
+      throw new NotImplementedError()
+    }
+  }
+
+  "getting the permissions" should {
+    "return the correct permissions" in new Context {
+      throw new NotImplementedError()
+    }
+    "throw a FilePermissionError if the permissions cannot be determined because of permissions" in new Context {
+      throw new NotImplementedError()
+    }
+    "throw a FileMissingError if the file is missing" in new Context {
+      throw new NotImplementedError()
+    }
+  }
+
+  "getting the symlink path" should {
+    //also have appropriate tests defined :)
   }
 }
