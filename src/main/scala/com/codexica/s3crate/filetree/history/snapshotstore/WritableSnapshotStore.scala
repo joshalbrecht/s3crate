@@ -4,7 +4,6 @@ import scala.concurrent.Future
 import java.io.InputStream
 import com.codexica.s3crate.filetree.history.FilePathState
 import com.codexica.s3crate.filetree.FilePath
-import RemoteFileSystemTypes
 
 /**
  * Interface for writing new snapshots to the storage system.

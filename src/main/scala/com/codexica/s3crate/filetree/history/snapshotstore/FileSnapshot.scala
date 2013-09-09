@@ -1,7 +1,6 @@
 package com.codexica.s3crate.filetree.history.snapshotstore
 
 import play.api.libs.json._
-import RemoteFileSystemTypes
 import com.codexica.s3crate.filetree.history.FilePathState
 
 /**

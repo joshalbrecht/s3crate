@@ -1,7 +1,6 @@
 package com.codexica.s3crate.filetree.history.snapshotstore
 
 import scala.concurrent.Future
-import RemoteFileSystemTypes
 import com.codexica.s3crate.filetree.{FilePath, WritableFileTree}
 
 /**

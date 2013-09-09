@@ -3,7 +3,6 @@ package com.codexica.encryption
 import org.specs2.mutable.Specification
 import org.apache.commons.io.FileUtils
 import java.io.File
-import com.codexica.encryption.Encryption
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
