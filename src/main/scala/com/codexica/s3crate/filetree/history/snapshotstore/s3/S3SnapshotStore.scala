@@ -32,11 +32,14 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
   val COMPRESSION_RATIO = 0.7
   //how/whether to encrypt the data at all
   val ENCRYPTION_METHOD: EncryptionMethod = SimpleEncryption()
+  //file bigger than 128MB? Don't try to upload that as one big thing, it's going to take forever and fail.
+  private val MULTIPART_CUTOFF_BYTES = 128 * 1024 * 1024
 
   private val metaFolder = (remotePrefix.split("/").filter(_ != "").toList ::: List("meta")).mkString("/")
   private val blobFolder = (remotePrefix.split("/").filter(_ != "").toList ::: List("blob")).mkString("/")
   private val metaDir = getPersistentLocalFolder(metaFolder)
   private val uploadDir = getPersistentLocalFolder(blobFolder)
+  private val blobWriter = new S3BlobWriter(s3, ec, uploadDir)
 
   /**
    * @return Future will be complete when all of the older files were deleted
@@ -123,7 +126,9 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
     //ServiceUtils.toBase64
     val encryptionDetails = EncryptionDetails(encryptedKey, encryption)
 
-    new S3BlobOutput(s3, ec).save(encryptedInput).map(blobLocation => {
+    //store blob in a random location, really doesn't matter
+    val blobLocation = randomBlobLocation()
+    blobWriter.save(encryptedInput, blobLocation, MULTIPART_CUTOFF_BYTES).map(_ => {
       DataBlob(blobLocation, encryptionDetails, shouldZip)
     })
   }
@@ -192,5 +197,9 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
   private def readMetaFile(file: File): FileSnapshot = {
     val jsonData = new String(Encryption.publicDecrypt(FileUtils.readFileToByteArray(file), metaKeys.priv), TEXT_ENCODING)
     Json.parse(jsonData).as[FileSnapshot]
+  }
+
+  private def randomBlobLocation(): String = {
+    throw new NotImplementedError()
   }
 }

@@ -44,9 +44,13 @@ libraryDependencies += "com.google.guava" % "guava" % "14.0.1"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2-M1"
 
+libraryDependencies += "com.typesafe.akka" %% "akka-actor-tests" % "2.2-M1"
+
 libraryDependencies += "com.typesafe.akka" %% "akka-slf4j" % "2.2-M1"
 
 libraryDependencies += "joda-time" % "joda-time" % "2.3"
+
+libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.0.9"
 
 resolvers += "Mandubian repository snapshots" at "https://github.com/mandubian/mandubian-mvn/raw/master/snapshots/"
 
@@ -57,4 +61,8 @@ libraryDependencies += "play" %% "play-json" % "2.2-SNAPSHOT"
 libraryDependencies += "org.specs2" %% "specs2" % "1.13" % "test"
 
 libraryDependencies += "junit" % "junit" % "4.8" % "test"
+
+libraryDependencies += "org.scalamock" %% "scalamock-specs2-support" % "3.0.1" % "test"
+
+
 

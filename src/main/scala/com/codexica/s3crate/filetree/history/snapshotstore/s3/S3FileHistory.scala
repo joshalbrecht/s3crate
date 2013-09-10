@@ -125,7 +125,7 @@ object S3FileHistory {
     val awsCredentials = new AWSCredentials(awsAccessKey, awsSecretKey)
     val s3Service = new RestS3Service(awsCredentials)
     val bucket = s3Service.getOrCreateBucket(bucketName, S3Bucket.LOCATION_US_WEST)
-    val store = new S3FileHistory(new S3SnapshotStore(new S3Interface(s3Service, bucket), remotePrefix, ec, metaKeys, blobKeys))
+    val store = new S3FileHistory(new S3SnapshotStore(new S3InterfaceImpl(s3Service, bucket), remotePrefix, ec, metaKeys, blobKeys))
     val booted = store.init()
     booted.map(_ => store)
   }
