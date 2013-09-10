@@ -1,28 +1,22 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, BlobOutput}
+import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, BlobWriter}
 import com.codexica.encryption.EncryptionDetails
 import java.io.{InputStream, FileOutputStream, BufferedOutputStream, File}
 import java.security.MessageDigest
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
+import java.util.UUID
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class S3BlobOutput(s3: S3Interface, ec: ExecutionContext) extends BlobOutput {
+class S3BlobWriter(s3: S3Interface, ec: ExecutionContext, uploadDirectory: File) extends BlobWriter {
   implicit val context = ec
 
-  //file bigger than 128MB? Don't try to upload that as one big thing, it's going to take forever and fail.
-  private val MULTIPART_CUTOFF_BYTES = 128 * 1024 * 1024
-
-  override def save(data: InputStream): Future[String] = Future {
-
-    //store blob in a random location, really doesn't matter
-    val blobLocation = randomBlobLocation()
-
+  override def save(data: InputStream, blobLocation: String, maxPartSize: Long): Future[Unit] = Future {
     //write out all of the data for upload and calculate the md5 for each piece
-    val (fileHashes, completeMd5) = writeBlobToFiles(data, MULTIPART_CUTOFF_BYTES)
+    val (fileHashes, completeMd5) = writeBlobToFiles(data, maxPartSize)
     //if this file is huge:
     if (fileHashes.size > 1) {
       //let the multi-part uploader take care of the rest
@@ -36,8 +30,6 @@ class S3BlobOutput(s3: S3Interface, ec: ExecutionContext) extends BlobOutput {
 
     //clean up the leftover files:
     fileHashes.keys.foreach((file: File) => assert(file.delete()))
-
-    blobLocation
   }
 
   /**
@@ -98,11 +90,7 @@ class S3BlobOutput(s3: S3Interface, ec: ExecutionContext) extends BlobOutput {
     (files.toMap, completeMd5Accumulator.digest())
   }
 
-  private def randomBlobLocation(): String = {
-    throw new NotImplementedError()
-  }
-
   private def makeUploadDirectoryFile(): File = {
-    throw new NotImplementedError()
+    new File(uploadDirectory, UUID.randomUUID().toString)
   }
 }
