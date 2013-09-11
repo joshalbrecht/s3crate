@@ -4,6 +4,8 @@ import org.jets3t.service.impl.rest.httpclient.RestS3Service
 import org.jets3t.service.model.{S3Object, S3Bucket}
 import java.io._
 import org.apache.commons.io.{IOUtils, FileUtils}
+import org.jets3t.service.utils.ServiceUtils
+import org.slf4j.LoggerFactory
 
 /**
  * A wrapper around the JetS3t interface to S3 for simplicity and testing
@@ -11,6 +13,7 @@ import org.apache.commons.io.{IOUtils, FileUtils}
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
 class S3InterfaceImpl(s3: RestS3Service, bucket: S3Bucket) extends S3Interface {
+  protected val logger = LoggerFactory.getLogger(getClass)
 
   override def listObjects(prefix: String): List[S3Object] = {
     s3.listObjects(bucket.getName, prefix, null).toList
@@ -23,7 +26,8 @@ class S3InterfaceImpl(s3: RestS3Service, bucket: S3Bucket) extends S3Interface {
     s3.putObject(bucket, obj)
   }
 
-  override def multipartUpload(fileHashes: Map[File, Array[Byte]], location: String, completeMD5: Array[Byte]): S3Object = {
+  override def multipartUpload(fileHashes: List[(File, Array[Byte])], location: String, completeMD5: Array[Byte]): S3Object = {
+    logger.info("Uploading {} files to {} (resulting hash should be {})", fileHashes.size.toString, location, ServiceUtils.toBase64(completeMD5))
     //Multipart
     //UploadCallable.uploadInParts  //<- see for real implementation, using md5
     //weirdness: when uploading in multiple parts, if LESS than 5GB, must copy onto yourself, which regenerates the ETAG to be the MD5 hash, THEN we can verify that the upload worked correctly.

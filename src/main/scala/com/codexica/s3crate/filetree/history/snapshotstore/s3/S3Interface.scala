@@ -40,7 +40,7 @@ trait S3Interface {
    * @param completeMD5 The MD5 hash for the entire object (concatenation of all files)
    * @return The uploaded object
    */
-  def multipartUpload(fileHashes: Map[File, Array[Byte]], location: String, completeMD5: Array[Byte]): S3Object
+  def multipartUpload(fileHashes: List[(File, Array[Byte])], location: String, completeMD5: Array[Byte]): S3Object
 
   /**
    * @param obj Download the data from this object
