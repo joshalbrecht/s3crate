@@ -1,0 +1,14 @@
+<aspectj>
+
+    <aspects>
+        <aspect name="com.codexica.aop.MethodLogger"/>
+    </aspects>
+
+    <!--<weaver options="-XnoInline -verbose -showWeaveInfo -debug">-->
+    <weaver options="-XnoInline">
+        <include within="com.codexica..*"/>
+        <!-- TODO: would love some way to disable these immutable checks on silly things -->
+        <!--<exclude within="@com.jcabi.aspects.Immutable *"/>-->
+    </weaver>
+
+</aspectj>

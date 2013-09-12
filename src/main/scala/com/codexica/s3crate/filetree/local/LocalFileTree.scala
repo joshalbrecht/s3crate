@@ -10,12 +10,12 @@ import org.joda.time.{DateTimeZone, DateTime}
 import org.apache.commons.io.{IOUtils, FileUtils}
 import org.apache.commons.io.filefilter.TrueFileFilter
 import scala.collection.JavaConversions._
-import com.codexica.s3crate.filetree.FilePathEvent
-import com.codexica.s3crate.filetree.SymLinkType
-import com.codexica.s3crate.filetree.FileType
-import com.codexica.s3crate.filetree.FolderType
 import scala.util.control.NonFatal
 import com.codexica.s3crate.{UnexpectedError, S3CrateError}
+import com.codexica.s3crate.filetree.SymLinkType
+import com.codexica.s3crate.filetree.FileType
+import com.codexica.s3crate.filetree.FilePathEvent
+import com.codexica.s3crate.filetree.FolderType
 
 /**
  * A locally mounted file system. Should be accessibly by working with java.io.File's
@@ -42,7 +42,7 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
   }
 
   override def read(path: FilePath): SafeInputStream = {
-    new SafeInputStream(new FileInputStream(getFile(path)))
+    SafeInputStream.fromFile(getFile(path))
   }
 
   override def metadata(path: FilePath): Future[FilePathState] = Future {

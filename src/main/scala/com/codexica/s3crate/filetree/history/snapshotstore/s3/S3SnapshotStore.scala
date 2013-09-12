@@ -2,8 +2,8 @@ package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
 import com.codexica.s3crate.filetree.history.snapshotstore._
 import scala.concurrent.{ExecutionContext, Future}
-import java.io.{FileOutputStream, BufferedOutputStream, File, InputStream}
-import com.codexica.s3crate.filetree.{WritableFileTree, FilePath}
+import java.io._
+import com.codexica.s3crate.filetree.{SafeInputStream, WritableFileTree, FilePath}
 import com.codexica.encryption._
 import com.codexica.s3crate.{FutureUtils, Contexts}
 import org.apache.commons.io.FileUtils
@@ -15,6 +15,9 @@ import org.xerial.snappy.SnappyInputStream
 import com.codexica.encryption.SimpleEncryption
 import com.codexica.encryption.NoEncryption
 import scala.util.control.NonFatal
+import com.codexica.encryption.SimpleEncryption
+import com.codexica.encryption.NoEncryption
+import com.codexica.encryption.KeyPair
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -39,7 +42,6 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
   private val blobFolder = (remotePrefix.split("/").filter(_ != "").toList ::: List("blob")).mkString("/")
   private val metaDir = getPersistentLocalFolder(metaFolder)
   private val uploadDir = getPersistentLocalFolder(blobFolder)
-  private val blobWriter = new S3BlobWriter(s3, ec, uploadDir)
 
   /**
    * @return Future will be complete when all of the older files were deleted
@@ -93,7 +95,7 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
     }
   }
 
-  override def saveBlob(path: FilePath, state: FilePathState, inputGenerator: () => InputStream): Future[DataBlob] = {
+  override def saveBlob(path: FilePath, state: FilePathState, inputGenerator: () => SafeInputStream): Future[DataBlob] = Future {
 
     //don't bother compressing unless we get at least a 30% savings in space
     //the purpose of this is to ignore compression for already encoded binaries (mp3, jpg, zips, etc)
@@ -103,7 +105,7 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
     //if we need to zip, compress the data
     val input = inputGenerator()
     val compressedStream = shouldZip match {
-      case true => new SnappyInputStream(input)
+      case true => new SafeInputStream(new SnappyInputStream(input), s"zipped($input)")
       case false => input
     }
 
@@ -117,7 +119,7 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
 
     val encryptedInput = encryption match {
       case NoEncryption() => compressedStream
-      case SimpleEncryption() => Encryption.encryptStream(key, compressedStream)
+      case SimpleEncryption() => new SafeInputStream(Encryption.encryptStream(key, compressedStream), s"encrypted($compressedStream)")
     }
 
     //encrypt the key
@@ -128,9 +130,8 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
 
     //store blob in a random location, really doesn't matter
     val blobLocation = randomBlobLocation()
-    blobWriter.save(encryptedInput, blobLocation, MULTIPART_CUTOFF_BYTES).map(_ => {
-      DataBlob(blobLocation, encryptionDetails, shouldZip)
-    })
+    s3.save(encryptedInput, blobLocation, uploadDir, MULTIPART_CUTOFF_BYTES)
+    DataBlob(blobLocation, encryptionDetails, shouldZip)
   }
 
   override def saveSnapshot(path: FilePath, state: FilePathState, blob: DataBlob, previous: Option[RemoteFileSystemTypes.SnapshotId]): Future[FileSnapshot] = Future {
@@ -157,9 +158,8 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
     val output = new BufferedOutputStream(new FileOutputStream(file))
     output.write(encryptedSnapshot)
     output.close()
-    val hash = ServiceUtils.computeMD5Hash(encryptedSnapshot)
     val location = getMetaLocation(remoteSnapshot)
-    s3.upload(file, location, hash)
+    s3.save(SafeInputStream.fromFile(file), location, uploadDir, Long.MaxValue)
     FileUtils.moveFileToDirectory(file, metaDir, true)
     remoteSnapshot
   }

@@ -1,16 +1,22 @@
 package com.codexica.s3crate.filetree
 
-import java.io.{IOException, InputStream}
+import java.io.{FileInputStream, File, IOException, InputStream}
 import scala.util.Try
 import com.codexica.s3crate.{S3CrateError, UnexpectedError}
 import scala.util.control.NonFatal
+
+object SafeInputStream {
+  def fromFile(file: File): SafeInputStream = {
+    new SafeInputStream(new FileInputStream(file), file.getAbsolutePath)
+  }
+}
 
 /**
  * Proxy to InputStream that wraps all errors with the correct exception, depending on how they should be handled
  *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class SafeInputStream(stream: InputStream) extends InputStream {
+class SafeInputStream(stream: InputStream, name: String) extends InputStream {
 
   def read(): Int = Try(stream.read()).recoverWith(handler).get
 
@@ -40,5 +46,9 @@ class SafeInputStream(stream: InputStream) extends InputStream {
     case e: IOException => throw new InaccessibleDataError("Failure reading from file tree", e)
     case e: S3CrateError => throw e
     case NonFatal(e) => throw new UnexpectedError("Unexpected error while reading from file tree", e)
+  }
+
+  override def toString: String = {
+    s"$getClass($name)"
   }
 }

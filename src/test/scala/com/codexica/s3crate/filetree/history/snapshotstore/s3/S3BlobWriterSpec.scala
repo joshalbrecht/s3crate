@@ -1,63 +1,51 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import org.specs2.mutable.Specification
-import org.specs2.specification.Scope
-import org.apache.commons.lang3.RandomStringUtils
-import java.io.{File, ByteArrayInputStream}
-import scala.concurrent.{Await, ExecutionContext}
-import scala.concurrent.duration.Duration
+import java.io.ByteArrayInputStream
 import org.scalamock.specs2.MockFactory
-import org.jets3t.service.model.S3Object
-import org.scalamock.FunctionAdapter3
 import org.jets3t.service.utils.ServiceUtils
 import org.apache.commons.io.FileUtils
 import java.util.Random
+import com.codexica.s3crate.SafeLogSpecification
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class S3BlobWriterSpec extends Specification with MockFactory {
+class S3BlobWriterSpec extends SafeLogSpecification with MockFactory {
 
-  trait Context extends Scope {
+  trait Context extends BaseContext {
     val dataLength = 34985
     val bytes = new Array[Byte](dataLength)
-    new Random().nextBytes(bytes)
+    new Random(1337).nextBytes(bytes)
     val fullDataHash = ServiceUtils.computeMD5Hash(bytes)
     val inputStream = new ByteArrayInputStream(bytes)
-    val s3 = mock[S3Interface]
-    val ec = ExecutionContext.Implicits.global
-    val blob = new S3BlobWriter(s3, ec, FileUtils.getTempDirectory)
-    val path = "some/place/to/put/data"
   }
 
   "saving a regular file" should {
-    "call upload with the correct values" in new Context {
-      (s3.upload _).expects(new FunctionAdapter3((file: File, location: String, md5: Array[Byte]) => {
-        md5.toList must be equalTo fullDataHash.toList
-        location must be equalTo path
-        FileUtils.readFileToByteArray(file).toList must be equalTo bytes.toList
-        true
-      }))
-      Await.result(blob.save(inputStream, path, dataLength*2), Duration.Inf) must be equalTo Unit
+    "create a list with one file that matches" in new Context {
+      val (fileHashes, completeHash) = S3BlobWriter.write(inputStream, FileUtils.getTempDirectory, dataLength * 2)
+      completeHash.toList must be equalTo fullDataHash.toList
+      fileHashes.size must be equalTo 1
+      val (file, hash) = fileHashes.head
+      FileUtils.readFileToByteArray(file).toList must be equalTo bytes.toList
+      hash.toList must be equalTo fullDataHash.toList
     }
   }
 
   "saving a large file" should {
-    "call upload with the correct values" in new Context {
-      (s3.multipartUpload _).expects(new FunctionAdapter3((fileHashes: List[(File, Array[Byte])], location: String,
-                                                           completeMD5: Array[Byte]) => {
-        completeMD5.toList must be equalTo fullDataHash.toList
-        location must be equalTo path
-        fileHashes.foreach({case (file, hash) => {
-          ServiceUtils.computeMD5Hash(FileUtils.readFileToByteArray(file)).toList must be equalTo hash.toList
-        }})
-        val allBytes = fileHashes.flatMap({case (file, hash) => {
-          FileUtils.readFileToByteArray(file).toList
-        }})
-        allBytes must be equalTo allBytes.toList
-        true
-      }))
-      Await.result(blob.save(inputStream, path, dataLength-2111), Duration.Inf) must be equalTo Unit
+    "create a list of multiple files with matching hashes" in new Context {
+      val secondFileSize = 2111
+      val firstFileSize = dataLength - secondFileSize
+      val (fileHashes, completeHash) = S3BlobWriter.write(inputStream, FileUtils.getTempDirectory, firstFileSize)
+      completeHash.toList must be equalTo fullDataHash.toList
+      fileHashes.size must be equalTo 2
+
+      val (firstFile, firstHash) = fileHashes.head
+      FileUtils.readFileToByteArray(firstFile).toList must be equalTo bytes.toList.take(firstFileSize)
+      firstHash.toList must be equalTo ServiceUtils.computeMD5Hash(bytes.toList.take(firstFileSize).toArray).toList
+
+      val (secondFile, secondHash) = fileHashes.drop(1).head
+      FileUtils.readFileToByteArray(secondFile).toList must be equalTo bytes.toList.drop(firstFileSize)
+      secondHash.toList must be equalTo ServiceUtils.computeMD5Hash(bytes.toList.drop(firstFileSize).toArray).toList
     }
   }
 

@@ -64,5 +64,11 @@ libraryDependencies += "junit" % "junit" % "4.8" % "test"
 
 libraryDependencies += "org.scalamock" %% "scalamock-specs2-support" % "3.0.1" % "test"
 
+libraryDependencies += "org.aspectj" % "aspectjweaver" % "1.7.2"
 
+libraryDependencies += "org.aspectj" % "aspectjrt"     % "1.7.2"
+
+libraryDependencies += "com.jcabi"   % "jcabi-aspects" % "0.8"
+
+libraryDependencies += "com.jcabi"   % "jcabi-log" % "0.8"
 

@@ -2,8 +2,10 @@ package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
 import org.jets3t.service.impl.rest.httpclient.RestS3Service
 import org.jets3t.service.model.{S3Object, S3Bucket}
-import java.io.{FileOutputStream, BufferedOutputStream, BufferedInputStream, File}
+import java.io._
 import org.apache.commons.io.IOUtils
+import scala.concurrent.Future
+import com.codexica.s3crate.filetree.SafeInputStream
 
 /**
  * A wrapper around the JetS3t interface to S3 for simplicity and testing
@@ -14,43 +16,35 @@ trait S3Interface {
 
   /**
    * @param prefix the path that must be a prefix of each object returned
+   * @throws InaccessibleDataError if we could not connect to s3 and list the buckets properly
    * @return A list of all objects at this path
    */
   def listObjects(prefix: String): List[S3Object]
 
   /**
-   * Normal method of uploading to S3.
-   *
-   * @param file File to upload
-   * @param location Path to upload it to
-   * @param md5 The hash of the file contents
-   * @return The uploaded object
+   * Upload all of the data to the storage location, splitting as necessary
+   * @param data The data to be written. This stream will definitely be closed, regardless of whether an exception is
+   *             thrown or the function returns normally.
+   * @param blobLocation where the data should be stored
+   * @param maxPartSize The maximum amount of data to be written in a single stream to the storage provider. If multiple
+   *                    parts must be uploaded, they will be merged after being uploaded.
+   * @param uploadDir where to write the file(s) before uploading
+   * @throws InaccessibleDataError if the data could not be read or written for any reason
+   * @return The object that was created
    */
-  def upload(file: File, location: String, md5: Array[Byte]): S3Object
-
-  /**
-   * Given a set of (file, md5 hash) pairs, upload all of them to S3 (in parallel?) and verify that each upload has
-   * the correct MD5 hash.
-   *
-   * If the resulting file is LESS than 5GB, then copy the file onto itself in S3 to regenerate the ETAG, which should
-   * then be equal to the complete MD5.
-   *
-   * @param fileHashes The set of file/hashes to upload
-   * @param location Path to upload to
-   * @param completeMD5 The MD5 hash for the entire object (concatenation of all files)
-   * @return The uploaded object
-   */
-  def multipartUpload(fileHashes: List[(File, Array[Byte])], location: String, completeMD5: Array[Byte]): S3Object
+  def save(data: SafeInputStream, blobLocation: String, uploadDir: File, maxPartSize: Long): S3Object
 
   /**
    * @param obj Download the data from this object
    * @param file And save it into this file
+   * @throws InaccessibleDataError if there were problems with S3 or the file
    */
   def download(obj: S3Object, file: File)
 
   /**
    * @param path Download the data from this path
    * @param file And save it into this file
+   * @throws InaccessibleDataError if there were problems with S3 or the file
    */
   def download(path: String, file: File)
 }

@@ -114,12 +114,8 @@ object S3FileHistory {
     //TODO:  move this configuration somewhere better
     val config = ConfigFactory.parseFile(new File(FileUtils.getUserDirectory, "aws.conf")).withFallback(ConfigFactory.load())
     val bucketName = "joshalbrecht.test"
-    val metaPublicKey = Encryption.generatePublicKey()
-    val metaPrivateKey = Encryption.generatePublicKey()
-    val metaKeys = KeyPair(metaPublicKey, metaPrivateKey, RSA())
-    val blobPublicKey = Encryption.generatePublicKey()
-    val blobPrivateKey = Encryption.generatePublicKey()
-    val blobKeys = KeyPair(blobPublicKey, blobPrivateKey, RSA())
+    val metaKeys = KeyPair.generate(RSA())
+    val blobKeys = KeyPair.generate(RSA())
     val awsAccessKey = config.getString("aws.access_key")
     val awsSecretKey = config.getString("aws.secret_key")
     val awsCredentials = new AWSCredentials(awsAccessKey, awsSecretKey)
