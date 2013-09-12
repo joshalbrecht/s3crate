@@ -9,10 +9,20 @@ import com.codexica.s3crate.filetree._
 import java.nio.file.{Paths, Files}
 import com.codexica.s3crate.filetree.FileType
 import com.codexica.s3crate.filetree.FolderType
-
+import org.junit.runner.RunWith
+import org.specs2.runner.JUnitRunner
+import java.nio.file.attribute.UserPrincipal
+import java.nio.file.attribute.UserPrincipalLookupService
+import java.nio.file.FileSystem
+import java.nio.file.attribute.GroupPrincipal
+import java.nio.file.LinkOption
+import java.nio.file.attribute.PosixFileAttributes
+import java.nio.file.attribute.PosixFileAttributeView
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
+
+@RunWith(classOf[JUnitRunner])
 class LinuxFileTreeSpec extends Specification {
 
   trait Context extends Scope {
@@ -46,25 +56,40 @@ class LinuxFileTreeSpec extends Specification {
 
   "getting the owner" should {
     "return the user's name for regular files" in new Context {
-      throw new NotImplementedError()
+      val file = new File("/tmp/linuxFileOwnerTest")
+      if (!file.exists()) {
+        file.createNewFile()
+      }
+      val path = Paths.get(file.toURI())
+      val owner: UserPrincipal = Files.getOwner(Paths.get(new File(System.getProperty("user.home")).toURI()))
+      Files.setOwner(path, owner)
+      tree.getOwner(file) must be equalTo(owner.getName())
     }
     "throw a FilePermissionError if the user name cannot be determined because of permissions" in new Context {
-      throw new NotImplementedError()
+      tree.getOwner(new File("/root")) must throwA[FilePermissionError]
     }
     "throw a FileMissingError if the file is missing" in new Context {
-      throw new NotImplementedError()
+      tree.getOwner(new File("/definitely/does/not/exist")) must throwA[FileMissingError]
     }
   }
 
   "getting the group" should {
     "return the group's name for regular files" in new Context {
-      throw new NotImplementedError()
+      val file = new File("/tmp/linuxFileGroupTest")
+      if (!file.exists()) {
+        file.createNewFile()
+      }
+      val path = Paths.get(file.toURI())
+      val group: GroupPrincipal = Files.readAttributes(Paths.get(new File(System.getProperty("user.home")).toURI()), classOf[PosixFileAttributes], LinkOption.NOFOLLOW_LINKS).group()
+      val view: PosixFileAttributeView = Files.getFileAttributeView(path,classOf[PosixFileAttributeView]);
+      view.setGroup(group)
+      tree.getOwner(file) must be equalTo(group.getName())
     }
     "throw a FilePermissionError if the group name cannot be determined because of permissions" in new Context {
-      throw new NotImplementedError()
+      tree.getGroup(new File("/root")) must throwA[FilePermissionError]
     }
     "throw a FileMissingError if the file is missing" in new Context {
-      throw new NotImplementedError()
+      tree.getGroup(new File("/definitely/does/not/exist")) must throwA[FileMissingError]
     }
   }
 
@@ -73,14 +98,22 @@ class LinuxFileTreeSpec extends Specification {
       throw new NotImplementedError()
     }
     "throw a FilePermissionError if the permissions cannot be determined because of permissions" in new Context {
-      throw new NotImplementedError()
+      tree.getPermissions(new File("/root")) must throwA[FilePermissionError]
     }
     "throw a FileMissingError if the file is missing" in new Context {
-      throw new NotImplementedError()
+      tree.getPermissions(new File("/definitely/does/not/exist")) must throwA[FileMissingError]
     }
   }
 
   "getting the symlink path" should {
-    //also have appropriate tests defined :)
+    "return the correct symlink path" in new Context {
+      throw new NotImplementedError()
+    }
+    "throw a FilePermissionError if the symlink path cannot be determined because of permissions" in new Context {
+      tree.getSymLinkPath(new File("/root")) must throwA[FilePermissionError]
+    }
+    "throw a FileMissingError if the symlink is missing" in new Context {
+      tree.getSymLinkPath(new File("/definitely/does/not/exist")) must throwA[FileMissingError]
+    }
   }
 }
