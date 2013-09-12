@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-object S3BlobWriter {
+protected[s3] object S3BlobWriter {
   protected val logger = LoggerFactory.getLogger(getClass)
 
   /**

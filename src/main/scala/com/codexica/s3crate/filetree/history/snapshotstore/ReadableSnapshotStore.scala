@@ -9,7 +9,7 @@ import com.codexica.s3crate.filetree.{FilePath, WritableFileTree}
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
 trait ReadableSnapshotStore {
-  def list(): Future[List[RemoteFileSystemTypes.SnapshotId]]
+  def list(): Future[Set[RemoteFileSystemTypes.SnapshotId]]
   def read(id: RemoteFileSystemTypes.SnapshotId): Future[FileSnapshot]
   def download(id: RemoteFileSystemTypes.SnapshotId, path: FilePath, fileSystem: WritableFileTree): Future[Unit]
 }

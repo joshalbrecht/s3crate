@@ -1,10 +1,7 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import org.jets3t.service.impl.rest.httpclient.RestS3Service
-import org.jets3t.service.model.{S3Object, S3Bucket}
+import org.jets3t.service.model.S3Object
 import java.io._
-import org.apache.commons.io.IOUtils
-import scala.concurrent.Future
 import com.codexica.s3crate.filetree.SafeInputStream
 
 /**
@@ -19,7 +16,7 @@ trait S3Interface {
    * @throws InaccessibleDataError if we could not connect to s3 and list the buckets properly
    * @return A list of all objects at this path
    */
-  def listObjects(prefix: String): List[S3Object]
+  def listObjects(prefix: String): Set[S3Object]
 
   /**
    * Upload all of the data to the storage location, splitting as necessary
@@ -47,5 +44,11 @@ trait S3Interface {
    * @throws InaccessibleDataError if there were problems with S3 or the file
    */
   def download(path: String, file: File)
+
+  /**
+   * @param prefix Everything in the bucket with a matching prefix will be deleted
+   * @throws InaccessibleDataError if there were problems with S3
+   */
+  def delete(prefix: String)
 }
 

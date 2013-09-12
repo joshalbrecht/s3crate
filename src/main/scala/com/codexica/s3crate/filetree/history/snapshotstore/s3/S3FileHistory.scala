@@ -6,7 +6,7 @@ import com.codexica.s3crate.filetree.{ReadableFileTree, FilePath, WritableFileTr
 import scala.concurrent.{ExecutionContext, Future}
 import com.codexica.s3crate.FutureUtils
 import scala.Some
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import java.io.File
 import org.apache.commons.io.FileUtils
 import com.codexica.encryption.{RSA, KeyPair, Encryption}
@@ -17,7 +17,7 @@ import org.jets3t.service.model.S3Bucket
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class S3FileHistory private (store: S3SnapshotStore)(implicit val ec: ExecutionContext) extends FileTreeHistory {
+protected[s3] class S3FileHistory private (store: S3SnapshotStore)(implicit val ec: ExecutionContext) extends FileTreeHistory {
 
   //lock for modifying either of the maps:
   private val snapshotLock: AnyRef = new Object()
@@ -100,6 +100,7 @@ class S3FileHistory private (store: S3SnapshotStore)(implicit val ec: ExecutionC
   }
 }
 
+//TODO: make this protected again
 object S3FileHistory {
 
   /**
@@ -109,19 +110,11 @@ object S3FileHistory {
    * @param ec The context in which futures should be executed
    * @return The fully initialized file history backed by S3
    */
-  def initialize(ec: ExecutionContext, remotePrefix: String): Future[S3FileHistory] = {
+  def initialize(ec: ExecutionContext, remotePrefix: String, s3: S3Interface): Future[S3FileHistory] = {
     implicit val context = ec
-    //TODO:  move this configuration somewhere better
-    val config = ConfigFactory.parseFile(new File(FileUtils.getUserDirectory, "aws.conf")).withFallback(ConfigFactory.load())
-    val bucketName = "joshalbrecht.test"
     val metaKeys = KeyPair.generate(RSA())
     val blobKeys = KeyPair.generate(RSA())
-    val awsAccessKey = config.getString("aws.access_key")
-    val awsSecretKey = config.getString("aws.secret_key")
-    val awsCredentials = new AWSCredentials(awsAccessKey, awsSecretKey)
-    val s3Service = new RestS3Service(awsCredentials)
-    val bucket = s3Service.getOrCreateBucket(bucketName, S3Bucket.LOCATION_US_WEST)
-    val store = new S3FileHistory(new S3SnapshotStore(new S3InterfaceImpl(s3Service, bucket), remotePrefix, ec, metaKeys, blobKeys))
+    val store = new S3FileHistory(new S3SnapshotStore(s3, remotePrefix, ec, metaKeys, blobKeys))
     val booted = store.init()
     booted.map(_ => store)
   }

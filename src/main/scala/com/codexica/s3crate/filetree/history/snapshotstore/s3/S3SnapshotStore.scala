@@ -22,7 +22,7 @@ import com.codexica.encryption.KeyPair
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContext, metaKeys: KeyPair, blobKeys: KeyPair) extends ReadableSnapshotStore with WritableSnapshotStore {
+protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContext, metaKeys: KeyPair, blobKeys: KeyPair) extends ReadableSnapshotStore with WritableSnapshotStore {
   implicit val context = ec
 
   //name of this program
@@ -50,7 +50,7 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
     uploadDir.listFiles().foreach(file => assert(file.delete()))
   }
 
-  override def list(): Future[List[RemoteFileSystemTypes.SnapshotId]] = {
+  override def list(): Future[Set[RemoteFileSystemTypes.SnapshotId]] = {
     //generate a bunch of prefixes, and list each of those in parallel. The reason for this is that it makes listing
     //large buckets parallel, and thus much faster.
     val prefixes = UUID_CHARACTER_SET.flatMap(char1 => {
@@ -67,7 +67,7 @@ class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContex
           id
         }))
       })
-    }).toList).map(_.flatten)
+    }).toSet).map(_.flatten)
   }
 
   /**

@@ -36,6 +36,8 @@ libraryDependencies += "com.google.inject.extensions" % "guice-assistedinject" %
 
 libraryDependencies += "com.google.inject.extensions" % "guice-multibindings" % "3.0"
 
+libraryDependencies += "com.tzavellas" % "sse-guice" % "0.7.1"
+
 libraryDependencies += "org.bouncycastle" % "bcprov-ext-jdk15on" % "1.49"
 
 libraryDependencies += "org.xerial.snappy" % "snappy-java" % "1.1.0-M4"

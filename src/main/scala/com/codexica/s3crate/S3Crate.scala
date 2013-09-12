@@ -6,10 +6,13 @@ import com.google.common.base.Throwables
 import akka.actor.Props
 import com.codexica.s3crate.filetree.history.synchronization.InitializationMessage
 import com.codexica.s3crate.filetree.history.synchronization.actors.Synchronizer
-import com.codexica.s3crate.filetree.history.snapshotstore.s3.S3FileHistory
+import com.codexica.s3crate.filetree.history.snapshotstore.s3.{S3Interface, S3Module, S3FileHistory}
 import com.codexica.s3crate.filetree.local.LinuxFileTree
 import java.io.File
 import scala.concurrent.duration.Duration
+import com.typesafe.config.ConfigFactory
+import org.apache.commons.io.FileUtils
+import com.google.inject.Guice
 
 object S3Crate {
 
@@ -21,19 +24,17 @@ object S3Crate {
   def bootAndBlock() {
     onStartup()
 
-    //val injector = Guice.createInjector(new DefaultModule())
-
+    //TODO: parameterize and inject these
     val direction: SynchronizationDirection = Upload()
-
-    System.setProperty("config.resource", "/dev.conf")
-
     val s3Prefix = "test/cowdata"
     val baseFolder = new File("/home/cow/data")
 
-    //create the S3 filesystem representation
+    val injector = Guice.createInjector(new S3Module())
+    val s3 = injector.getInstance(classOf[S3Interface])
+
     val fileTree = new LinuxFileTree(baseFolder, Contexts.fileOperations)
     implicit val ec = Contexts.system.dispatchers.defaultGlobalDispatcher
-    val booted = S3FileHistory.initialize(Contexts.s3Operations, s3Prefix).map(history => {
+    val booted = S3FileHistory.initialize(Contexts.s3Operations, s3Prefix, s3).map(history => {
       direction match {
         case Upload() => {
           val synchronizer = Contexts.system.actorOf(Props.apply({new Synchronizer(fileTree.listen(), fileTree, history)}), "Synchronizer")
@@ -56,6 +57,10 @@ object S3Crate {
   }
 
   def main(args: Array[String]) {
+    //TODO: set this in a more general way
+    //very first thing we do is set the configuration location so that config can be loaded
+    System.setProperty("config.resource", new File(FileUtils.getUserDirectory, "aws.conf").getAbsolutePath)
+
     bootAndBlock()
   }
 }

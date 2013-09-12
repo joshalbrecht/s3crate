@@ -9,19 +9,22 @@ import org.slf4j.LoggerFactory
 import com.jcabi.aspects.Loggable
 import java.util.concurrent.TimeUnit
 import scala.concurrent.Future
-import com.codexica.s3crate.filetree.SafeInputStream
+import com.codexica.s3crate.filetree.{InaccessibleDataError, SafeInputStream}
+import com.google.inject.Inject
+import org.jets3t.service.model.container.ObjectKeyAndVersion
+import scala.collection.JavaConversions._
 
 /**
  * A wrapper around the JetS3t interface to S3 for simplicity and testing
  *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class S3InterfaceImpl(s3: RestS3Service, bucket: S3Bucket) extends S3Interface {
+protected[s3] class S3InterfaceImpl @Inject() (s3: RestS3Service, bucket: S3Bucket) extends S3Interface {
   private val logger = LoggerFactory.getLogger(getClass)
 
   @Loggable(value = Loggable.DEBUG, limit = 1, unit = TimeUnit.MINUTES, prepend = true)
-  override def listObjects(prefix: String): List[S3Object] = {
-    s3.listObjects(bucket.getName, prefix, null).toList
+  override def listObjects(prefix: String): Set[S3Object] = {
+    s3.listObjects(bucket.getName, prefix, null).toSet
   }
 
   @Loggable(value = Loggable.DEBUG, limit = 12, unit = TimeUnit.HOURS, prepend = true)
@@ -60,6 +63,22 @@ class S3InterfaceImpl(s3: RestS3Service, bucket: S3Bucket) extends S3Interface {
   @Loggable(value = Loggable.DEBUG, limit = 12, unit = TimeUnit.HOURS, prepend = true)
   override def download(path: String, file: File) {
     download(s3.getObject(bucket.getName, path), file)
+  }
+
+  //Note: this implementation may take a long time. We currently don't care because we only use it for testing...
+  @Loggable(value = Loggable.DEBUG, limit = 2, unit = TimeUnit.HOURS, prepend = true)
+  def delete(prefix: String) {
+    val allKeys = s3.listObjects(bucket.getName, prefix, null)
+    if (allKeys.size > 0) {
+      val result = s3.deleteMultipleObjects(bucket.getName, allKeys.map(s3Obj => {
+        new ObjectKeyAndVersion(s3Obj.getKey)
+      }), true)
+      if (result.hasErrors) {
+        throw new InaccessibleDataError("Failed to delete: " + result.getErrorResults.toList.map(error => {
+          s"${error.getKey} ${error.getVersion} ${error.getErrorCode} ${error.getMessage}"
+        }).mkString("\n"), null)
+      }
+    }
   }
 
   /**

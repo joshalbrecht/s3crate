@@ -22,8 +22,8 @@ class S3SnapshotStoreSpec extends SafeLogSpecification with MockFactory {
     "return an empty list if there are no snapshots" in new Context {
       (s3.listObjects _).expects(new FunctionAdapter1((prefix: String) => {
         true
-      })).returning(List()).anyNumberOfTimes()
-      Await.result(snapshotStore.list(), Duration.Inf) must be equalTo List()
+      })).returning(Set()).anyNumberOfTimes()
+      Await.result(snapshotStore.list(), Duration.Inf) must be equalTo Set()
     }
     "return the list of all snapshots if there are many" in new Context {
 
