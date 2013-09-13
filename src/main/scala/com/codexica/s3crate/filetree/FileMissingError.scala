@@ -1,5 +1,7 @@
 package com.codexica.s3crate.filetree
 
+import com.codexica.common.InaccessibleDataError
+
 /**
  * Thrown iff the file is missing when we attempt to access it
  *

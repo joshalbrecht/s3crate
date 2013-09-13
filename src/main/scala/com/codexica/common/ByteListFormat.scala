@@ -1,16 +1,19 @@
-package com.codexica.encryption
+package com.codexica.common
 
-import play.api.libs.json._
-import org.apache.commons.codec.binary.Base64
 import play.api.data.validation.ValidationError
-import com.codexica.s3crate.filetree.history.snapshotstore.RemoteFileSystemTypes
+import org.apache.commons.codec.binary.Base64
+import play.api.libs.json._
 
 /**
+ * Write and read byte arrays as base64-encoded strings in javascript.
+ *
+ * Note that this operates on Lists of bytes because those are properly comparable in case classes.
+ *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class KeyDataFormat extends Format[RemoteFileSystemTypes.KeyData] {
+class ByteListFormat extends Format[List[Byte]] {
 
-  def writes(o: RemoteFileSystemTypes.KeyData) = {
+  def writes(o: List[Byte]) = {
     val base = Base64.encodeBase64(o.toArray)
     val value = new String(base)
     JsString(value)

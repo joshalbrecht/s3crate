@@ -1,16 +1,16 @@
 package com.codexica.encryption
 
-import play.api.libs.json.Json
 import org.specs2.mutable.Specification
+import play.api.libs.json.Json
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class EncryptionMethodSpec extends Specification {
+class KeyPairTypeSpec extends Specification {
   "Serialization" should {
     "deserialize as exactly the same value" in {
-      val method = SimpleEncryption()
-      Json.parse(Json.stringify(Json.toJson(method))).as[EncryptionMethod] must be equalTo method
+      val method = RSA(512)
+      Json.parse(Json.stringify(Json.toJson(method))).as[KeyPairType] must be equalTo method
     }
   }
 }

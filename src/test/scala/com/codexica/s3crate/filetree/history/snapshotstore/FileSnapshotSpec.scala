@@ -1,13 +1,12 @@
-package com.codexica.s3crate.filesystem.remote
+package com.codexica.s3crate.filetree.history.snapshotstore
 
 import play.api.libs.json.Json
 import org.specs2.mutable.Specification
 import java.util.UUID
 import org.joda.time.DateTime
 import com.codexica.s3crate.filetree.{FileType, FileMetaData, FilePath}
-import com.codexica.s3crate.filetree.history.FilePathState
-import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, FileSnapshot}
-import com.codexica.encryption.{EncryptionDetails, SimpleEncryption}
+import com.codexica.s3crate.filetree.history.{SnappyCompression, FilePathState}
+import com.codexica.encryption.{KeyPairReference, EncryptionDetails}
 import java.nio.file.attribute.PosixFilePermission
 
 /**
@@ -18,7 +17,7 @@ class FileSnapshotSpec extends Specification {
     "deserialize as exactly the same value" in {
       val state = FilePathState(
         FilePath("local/path"),
-        true,
+        exists = true,
         Option(
           FileMetaData(
             FileType(),
@@ -28,7 +27,7 @@ class FileSnapshotSpec extends Specification {
             "group",
             Set(PosixFilePermission.GROUP_WRITE, PosixFilePermission.OWNER_READ, PosixFilePermission.OTHERS_WRITE),
             None,
-            false
+            isHidden = false
           )
         )
       )
@@ -36,11 +35,11 @@ class FileSnapshotSpec extends Specification {
         UUID.randomUUID(),
         DataBlob(
           "some/path",
-          EncryptionDetails(
-            "secret_key".getBytes().toList,
-            SimpleEncryption()
-          ),
-          false
+          Option(EncryptionDetails(
+            "secret_key".getBytes,
+            KeyPairReference(UUID.randomUUID())
+          )),
+          SnappyCompression()
         ),
         state,
         Option(UUID.randomUUID()))

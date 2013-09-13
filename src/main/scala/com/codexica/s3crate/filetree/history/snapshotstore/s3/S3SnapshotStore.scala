@@ -3,26 +3,21 @@ package com.codexica.s3crate.filetree.history.snapshotstore.s3
 import com.codexica.s3crate.filetree.history.snapshotstore._
 import scala.concurrent.{ExecutionContext, Future}
 import java.io._
-import com.codexica.s3crate.filetree.{SafeInputStream, WritableFileTree, FilePath}
-import com.codexica.encryption._
-import com.codexica.s3crate.{FutureUtils, Contexts}
+import com.codexica.s3crate.filetree.{WritableFileTree, FilePath}
 import org.apache.commons.io.FileUtils
 import java.util.UUID
-import com.codexica.s3crate.filetree.history.FilePathState
+import com.codexica.s3crate.filetree.history.{AsymmetricEncryptor, Compressor, SymmetricEncryptor, FilePathState}
 import play.api.libs.json.Json
-import org.jets3t.service.utils.ServiceUtils
-import org.xerial.snappy.SnappyInputStream
-import com.codexica.encryption.SimpleEncryption
-import com.codexica.encryption.NoEncryption
 import scala.util.control.NonFatal
-import com.codexica.encryption.SimpleEncryption
-import com.codexica.encryption.NoEncryption
-import com.codexica.encryption.KeyPair
+import com.codexica.common.{SafeInputStream, FutureUtils}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContext, metaKeys: KeyPair, blobKeys: KeyPair) extends ReadableSnapshotStore with WritableSnapshotStore {
+protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContext, compressor: Compressor,
+                        metaEncryptor: AsymmetricEncryptor, blobEncryptor: SymmetricEncryptor)
+  extends ReadableSnapshotStore with WritableSnapshotStore {
+
   implicit val context = ec
 
   //name of this program
@@ -31,10 +26,6 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
   val TEXT_ENCODING = "UTF-8"
   //the characters to use in random names
   val UUID_CHARACTER_SET = Set("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f")
-  //ratio of ( compressed size / original size ). If less than this ratio, it's worth it to encrypt
-  val COMPRESSION_RATIO = 0.7
-  //how/whether to encrypt the data at all
-  val ENCRYPTION_METHOD: EncryptionMethod = SimpleEncryption()
   //file bigger than 128MB? Don't try to upload that as one big thing, it's going to take forever and fail.
   private val MULTIPART_CUTOFF_BYTES = 128 * 1024 * 1024
 
@@ -96,42 +87,12 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
   }
 
   override def saveBlob(path: FilePath, state: FilePathState, inputGenerator: () => SafeInputStream): Future[DataBlob] = Future {
-
-    //don't bother compressing unless we get at least a 30% savings in space
-    //the purpose of this is to ignore compression for already encoded binaries (mp3, jpg, zips, etc)
-    val numBytesToTryCompressing = 256 * 1024
-    val shouldZip = compressionRatio(inputGenerator(), numBytesToTryCompressing) < COMPRESSION_RATIO
-
-    //if we need to zip, compress the data
-    val input = inputGenerator()
-    val compressedStream = shouldZip match {
-      case true => new SafeInputStream(new SnappyInputStream(input), s"zipped($input)")
-      case false => input
-    }
-
-    //check our current encryption policy and encrypt as necessary:
-    val encryption = ENCRYPTION_METHOD
-
-    val key = encryption match {
-      case NoEncryption() => new Array[Byte](0)
-      case SimpleEncryption() => randomBlobKey()
-    }
-
-    val encryptedInput = encryption match {
-      case NoEncryption() => compressedStream
-      case SimpleEncryption() => new SafeInputStream(Encryption.encryptStream(key, compressedStream), s"encrypted($compressedStream)")
-    }
-
-    //encrypt the key
-    val encryptedKey = encryptKey(key).toList
-
-    //ServiceUtils.toBase64
-    val encryptionDetails = EncryptionDetails(encryptedKey, encryption)
-
+    val (compressionMethod, compressedStream) = compressor.compress(inputGenerator)
+    val (encryptionDetails, encryptedInput) = blobEncryptor.encrypt(compressedStream)
     //store blob in a random location, really doesn't matter
     val blobLocation = randomBlobLocation()
     s3.save(encryptedInput, blobLocation, uploadDir, MULTIPART_CUTOFF_BYTES)
-    DataBlob(blobLocation, encryptionDetails, shouldZip)
+    DataBlob(blobLocation, encryptionDetails, compressionMethod)
   }
 
   override def saveSnapshot(path: FilePath, state: FilePathState, blob: DataBlob, previous: Option[RemoteFileSystemTypes.SnapshotId]): Future[FileSnapshot] = Future {
@@ -148,10 +109,7 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
     val jsonSnapshot = Json.stringify(Json.toJson(remoteSnapshot)).getBytes(TEXT_ENCODING)
 
     //encrypt the snapshot
-    val encryptedSnapshot = ENCRYPTION_METHOD match {
-      case NoEncryption() => jsonSnapshot
-      case SimpleEncryption() => Encryption.publicEncrypt(jsonSnapshot, metaKeys.pub)
-    }
+    val encryptedSnapshot = metaEncryptor.encrypt(jsonSnapshot)
 
     //write it out to the meta bucket
     val file = File.createTempFile(remoteSnapshot.id.toString, ".meta")
@@ -172,30 +130,12 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
     folder
   }
 
-  //TODO: be sure to close the stream
-  private def compressionRatio(stream: InputStream, numBytes: Int): Double = {
-    //    val bytes = new Array[Byte](numBytes)
-    //    val numBytesRead = stream.read(bytes)
-    //    //TODO:  use snappy to compress and compare with the number of bytes read
-    //    0.0
-    throw new NotImplementedError()
-  }
-
-  private def randomBlobKey(): Array[Byte] = {
-    throw new NotImplementedError()
-  }
-
-  //encode the key using the public key so that only someone with the private key can decrypt the contents
-  private def encryptKey(blobKey: Array[Byte]): Array[Byte] = {
-    throw new NotImplementedError()
-  }
-
   private def getMetaLocation(snapshot: FileSnapshot): String = {
     throw new NotImplementedError()
   }
 
   private def readMetaFile(file: File): FileSnapshot = {
-    val jsonData = new String(Encryption.publicDecrypt(FileUtils.readFileToByteArray(file), metaKeys.priv), TEXT_ENCODING)
+    val jsonData = new String(metaEncryptor.decrypt(FileUtils.readFileToByteArray(file)), TEXT_ENCODING)
     Json.parse(jsonData).as[FileSnapshot]
   }
 

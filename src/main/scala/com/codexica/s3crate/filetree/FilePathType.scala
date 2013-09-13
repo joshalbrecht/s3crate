@@ -1,6 +1,6 @@
 package com.codexica.s3crate.filetree
 
-import com.codexica.s3crate.SealedTraitFormat
+import com.codexica.common.SealedTraitFormat
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)

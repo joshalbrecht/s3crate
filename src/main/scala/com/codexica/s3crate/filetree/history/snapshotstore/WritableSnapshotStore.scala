@@ -3,7 +3,8 @@ package com.codexica.s3crate.filetree.history.snapshotstore
 import scala.concurrent.Future
 import java.io.InputStream
 import com.codexica.s3crate.filetree.history.FilePathState
-import com.codexica.s3crate.filetree.{SafeInputStream, FilePath}
+import com.codexica.s3crate.filetree.{FilePath}
+import com.codexica.common.SafeInputStream
 
 /**
  * Interface for writing new snapshots to the storage system.

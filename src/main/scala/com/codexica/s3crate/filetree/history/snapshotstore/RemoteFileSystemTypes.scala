@@ -2,6 +2,7 @@ package com.codexica.s3crate.filetree.history.snapshotstore
 
 import java.util.UUID
 import play.api.libs.json._
+import com.codexica.common.UUIDAliasFormat
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -9,15 +10,6 @@ import play.api.libs.json._
 object RemoteFileSystemTypes {
   type SnapshotId = UUID
   type S3Path = String
-  type KeyData = List[Byte]
 
-  class SnapshotIdFormat extends Format[SnapshotId] {
-    def writes(o: SnapshotId) = JsString(o.toString)
-    def reads(json: JsValue) = json match {
-      case JsString(value) => JsSuccess(UUID.fromString(value))
-      case _ => JsError("Expected a UUID")
-    }
-  }
-
-  implicit val pathFormat = new SnapshotIdFormat()
+  implicit val pathFormat = new UUIDAliasFormat[SnapshotId]()
  }

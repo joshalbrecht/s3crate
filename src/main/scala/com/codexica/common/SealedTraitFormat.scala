@@ -1,8 +1,10 @@
-package com.codexica.s3crate
+package com.codexica.common
 
 import play.api.libs.json._
 
 /**
+ * The best I could do for convenient serialization and deserialization of sealed traits
+ *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
 class SealedTraitFormat[A](cases: A*) extends Format[A] {

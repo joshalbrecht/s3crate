@@ -5,12 +5,12 @@ import org.scalamock.specs2.MockFactory
 import org.jets3t.service.utils.ServiceUtils
 import org.apache.commons.io.FileUtils
 import java.util.Random
-import com.codexica.s3crate.SafeLogSpecification
+import com.codexica.common.SafeLogSpecification
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class S3BlobWriterSpec extends SafeLogSpecification with MockFactory {
+class S3BlobWriterSpec extends SafeLogSpecification {
 
   trait Context extends BaseContext {
     val dataLength = 34985

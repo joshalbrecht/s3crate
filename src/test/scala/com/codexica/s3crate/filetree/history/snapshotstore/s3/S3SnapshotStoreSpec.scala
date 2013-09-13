@@ -1,11 +1,11 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import com.codexica.s3crate.SafeLogSpecification
 import org.scalamock.specs2.MockFactory
 import scala.concurrent.{Await, ExecutionContext}
-import com.codexica.encryption.{RSA, KeyPair}
+import com.codexica.encryption.{RSA}
 import org.scalamock.FunctionAdapter1
 import scala.concurrent.duration.Duration
+import com.codexica.common.SafeLogSpecification
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -15,7 +15,8 @@ class S3SnapshotStoreSpec extends SafeLogSpecification with MockFactory {
   trait Context extends BaseContext {
     val s3 = mock[S3Interface]
     val ec = ExecutionContext.Implicits.global
-    val snapshotStore = new S3SnapshotStore(s3, "some/prefix", ec, KeyPair.generate(RSA()), KeyPair.generate(RSA()))
+    //TODO: set encryption stuff
+    val snapshotStore = new S3SnapshotStore(s3, "some/prefix", ec, null, null, null)
   }
 
   "listing all snapshots" should {

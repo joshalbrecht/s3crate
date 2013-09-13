@@ -3,6 +3,7 @@ package com.codexica.s3crate.filetree
 import java.io.OutputStream
 import scala.concurrent.Future
 import com.codexica.s3crate.filetree.history.FilePathState
+import com.codexica.common.SafeInputStream
 
 /**
  * An interface to a filesystem, for reading data and metadata from paths

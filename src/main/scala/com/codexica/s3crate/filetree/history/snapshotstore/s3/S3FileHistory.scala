@@ -4,20 +4,14 @@ import com.codexica.s3crate.filetree.history.{FilePathState, FileTreeHistory}
 import com.codexica.s3crate.filetree.history.snapshotstore.{RemoteFileSystemTypes, FileSnapshot}
 import com.codexica.s3crate.filetree.{ReadableFileTree, FilePath, WritableFileTree}
 import scala.concurrent.{ExecutionContext, Future}
-import com.codexica.s3crate.FutureUtils
 import scala.Some
-import com.typesafe.config.{Config, ConfigFactory}
-import java.io.File
-import org.apache.commons.io.FileUtils
-import com.codexica.encryption.{RSA, KeyPair, Encryption}
-import org.jets3t.service.security.AWSCredentials
-import org.jets3t.service.impl.rest.httpclient.RestS3Service
-import org.jets3t.service.model.S3Bucket
+import com.codexica.common.FutureUtils
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-protected[s3] class S3FileHistory private (store: S3SnapshotStore)(implicit val ec: ExecutionContext) extends FileTreeHistory {
+protected[s3] class S3FileHistory private(store: S3SnapshotStore)(implicit val ec: ExecutionContext)
+  extends FileTreeHistory {
 
   //lock for modifying either of the maps:
   private val snapshotLock: AnyRef = new Object()
@@ -38,29 +32,31 @@ protected[s3] class S3FileHistory private (store: S3SnapshotStore)(implicit val 
     }).map(snapshotList => {
       snapshotLock.synchronized {
         snapshotList.foreach(snapshot => allSnapshots.put(snapshot.id, snapshot))
-        snapshotList.groupBy(snapshot => snapshot.fileSnapshot.path).foreach({case (filePath, snapshots) => {
-          val snapshotList = snapshots.toList
-          val linkedSnapshots = snapshotList.map(snapshot => {
-            (snapshot.previous, snapshot.id)
-          }).toMap
-          //TODO: we'll have to handle this eventually, but it's bad. Means that two things were writing at the same time
-          //confirming that there are no cases where there are two identical previous snapshots, would be ambiguous
-          assert(snapshotList.size == linkedSnapshots.size)
-          var curSnapshotId = linkedSnapshots(None)
-          var iterationNum = 0
-          var isDone = false
-          while (!isDone) {
-            linkedSnapshots.get(Option(curSnapshotId)) match {
-              case None => isDone = true
-              case Some(x) => curSnapshotId = x
+        snapshotList.groupBy(snapshot => snapshot.fileSnapshot.path).foreach({
+          case (filePath, snapshots) => {
+            val snapshotList = snapshots.toList
+            val linkedSnapshots = snapshotList.map(snapshot => {
+              (snapshot.previous, snapshot.id)
+            }).toMap
+            //TODO: we'll have to handle this eventually, but it's bad. Means that 2 things were writing at the same time
+            //confirming that there are no cases where there are two identical previous snapshots, would be ambiguous
+            assert(snapshotList.size == linkedSnapshots.size)
+            var curSnapshotId = linkedSnapshots(None)
+            var iterationNum = 0
+            var isDone = false
+            while (!isDone) {
+              linkedSnapshots.get(Option(curSnapshotId)) match {
+                case None => isDone = true
+                case Some(x) => curSnapshotId = x
+              }
+              iterationNum += 1
+              if (iterationNum > snapshotList.size) {
+                throw new RuntimeException("Cycle detected :( " + linkedSnapshots)
+              }
             }
-            iterationNum += 1
-            if (iterationNum > snapshotList.size) {
-              throw new RuntimeException("Cycle detected :( " + linkedSnapshots)
-            }
+            latestSnapshots.put(filePath, curSnapshotId)
           }
-          latestSnapshots.put(filePath, curSnapshotId)
-        }})
+        })
       }
       Unit
     })
@@ -74,7 +70,9 @@ protected[s3] class S3FileHistory private (store: S3SnapshotStore)(implicit val 
 
   def update(path: FilePath, fileTree: ReadableFileTree): Future[FileSnapshot] = {
     fileTree.metadata(path).flatMap(pathState => {
-      store.saveBlob(path, pathState, () => { fileTree.read(path) }).flatMap(blob => {
+      store.saveBlob(path, pathState, () => {
+        fileTree.read(path)
+      }).flatMap(blob => {
         //get previous version
         val previous = previousVersion(path).map(_.id)
         store.saveSnapshot(path, pathState, blob, previous).map(snapshot => {
@@ -93,7 +91,9 @@ protected[s3] class S3FileHistory private (store: S3SnapshotStore)(implicit val 
 
   def readLatest(path: FilePath): Future[FileSnapshot] = throw new NotImplementedError()
 
-  def download(snapshot: FileSnapshot, output: WritableFileTree): Future[FilePathState] = throw new NotImplementedError()
+  def download(snapshot: FileSnapshot, output: WritableFileTree): Future[FilePathState] = {
+    throw new NotImplementedError()
+  }
 
   protected def previousVersion(path: FilePath): Option[FileSnapshot] = {
     throw new NotImplementedError()
@@ -112,9 +112,8 @@ object S3FileHistory {
    */
   def initialize(ec: ExecutionContext, remotePrefix: String, s3: S3Interface): Future[S3FileHistory] = {
     implicit val context = ec
-    val metaKeys = KeyPair.generate(RSA())
-    val blobKeys = KeyPair.generate(RSA())
-    val store = new S3FileHistory(new S3SnapshotStore(s3, remotePrefix, ec, metaKeys, blobKeys))
+    //TODO:  create the crypto parameters
+    val store = new S3FileHistory(new S3SnapshotStore(s3, remotePrefix, ec, null, null, null))
     val booted = store.init()
     booted.map(_ => store)
   }

@@ -1,15 +1,14 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import com.codexica.s3crate.SafeLogSpecification
 import org.joda.time.{DateTimeZone, DateTime}
 import com.google.inject.Guice
 import org.slf4j.LoggerFactory
 import org.specs2.mutable.After
-import com.codexica.s3crate.filetree.{InaccessibleDataError, SafeInputStream}
 import java.io.{InputStream, File, ByteArrayInputStream}
 import java.util.{UUID, Random}
 import org.jets3t.service.utils.ServiceUtils
 import org.apache.commons.io.FileUtils
+import com.codexica.common.{InaccessibleDataError, SafeLogSpecification, SafeInputStream}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -30,7 +29,7 @@ class S3InterfaceSpec extends SafeLogSpecification {
     //make sure we delete everything when the tests are done
     def after = {
       val logger = LoggerFactory.getLogger(getClass)
-      logger.info("Deleting test info from s3 ($prefix)")
+      logger.info(s"Deleting test info from s3 ($prefix)")
       s3.delete(prefix)
       FileUtils.deleteDirectory(workingDir)
     }

@@ -11,11 +11,11 @@ import org.apache.commons.io.{IOUtils, FileUtils}
 import org.apache.commons.io.filefilter.TrueFileFilter
 import scala.collection.JavaConversions._
 import scala.util.control.NonFatal
-import com.codexica.s3crate.{UnexpectedError, S3CrateError}
 import com.codexica.s3crate.filetree.SymLinkType
 import com.codexica.s3crate.filetree.FileType
 import com.codexica.s3crate.filetree.FilePathEvent
 import com.codexica.s3crate.filetree.FolderType
+import com.codexica.common.{InaccessibleDataError, SafeInputStream, UnexpectedError, CodexicaError}
 
 /**
  * A locally mounted file system. Should be accessibly by working with java.io.File's
@@ -72,7 +72,7 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
       }
       FilePathState(path, exists, metadata)
     } catch {
-      case e: S3CrateError => throw e
+      case e: CodexicaError => throw e
       //TODO:  improve the list of things that can be thrown here so that all appropriate errors are wrapped
       case e: IOException => throw new InaccessibleDataError("Failure fetching metadata from file tree", e)
       case NonFatal(e) => throw new UnexpectedError("Unexpected error while fetching metadata from file tree", e)

@@ -38,7 +38,9 @@ libraryDependencies += "com.google.inject.extensions" % "guice-multibindings" % 
 
 libraryDependencies += "com.tzavellas" % "sse-guice" % "0.7.1"
 
-libraryDependencies += "org.bouncycastle" % "bcprov-ext-jdk15on" % "1.49"
+//libraryDependencies += "org.bouncycastle" % "bcprov-ext-jdk15on" % "1.49"
+
+libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.49"
 
 libraryDependencies += "org.xerial.snappy" % "snappy-java" % "1.1.0-M4"
 
@@ -73,4 +75,6 @@ libraryDependencies += "org.aspectj" % "aspectjrt"     % "1.7.2"
 libraryDependencies += "com.jcabi"   % "jcabi-aspects" % "0.8"
 
 libraryDependencies += "com.jcabi"   % "jcabi-log" % "0.8"
+
+libraryDependencies += "org.ostermiller" % "utils" % "1.07.00"
 

@@ -1,4 +1,4 @@
-package com.codexica.s3crate
+package com.codexica.common
 
 import org.specs2.mutable.Specification
 import org.specs2.specification.Scope

@@ -2,7 +2,7 @@ package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
 import org.jets3t.service.model.S3Object
 import java.io._
-import com.codexica.s3crate.filetree.SafeInputStream
+import com.codexica.common.SafeInputStream
 
 /**
  * A wrapper around the JetS3t interface to S3 for simplicity and testing

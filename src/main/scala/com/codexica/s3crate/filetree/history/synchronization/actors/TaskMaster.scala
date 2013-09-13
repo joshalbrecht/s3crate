@@ -6,7 +6,7 @@ import com.google.common.base.Throwables
 import com.codexica.s3crate.filetree.{PathGenerator, ReadableFileTree}
 import com.codexica.s3crate.filetree.history.{FilePathState, FileTreeHistory}
 import com.codexica.s3crate.filetree.history.synchronization.{WorkRequest, PathTask}
-import com.codexica.s3crate.FutureUtils
+import com.codexica.common.FutureUtils
 
 //TODO:  this class should be responsible for making sure that EVERYTHING gets up there, logging errors if not, deleting old snapshots, etc
 /**

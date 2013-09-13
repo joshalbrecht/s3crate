@@ -9,10 +9,10 @@ import org.slf4j.LoggerFactory
 import com.jcabi.aspects.Loggable
 import java.util.concurrent.TimeUnit
 import scala.concurrent.Future
-import com.codexica.s3crate.filetree.{InaccessibleDataError, SafeInputStream}
 import com.google.inject.Inject
 import org.jets3t.service.model.container.ObjectKeyAndVersion
 import scala.collection.JavaConversions._
+import com.codexica.common.{InaccessibleDataError, SafeInputStream}
 
 /**
  * A wrapper around the JetS3t interface to S3 for simplicity and testing
