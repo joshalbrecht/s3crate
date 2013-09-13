@@ -5,8 +5,8 @@ import org.joda.time.{DateTimeZone, DateTime}
 import com.google.inject.Guice
 import org.slf4j.LoggerFactory
 import org.specs2.mutable.After
-import com.codexica.s3crate.filetree.SafeInputStream
-import java.io.ByteArrayInputStream
+import com.codexica.s3crate.filetree.{InaccessibleDataError, SafeInputStream}
+import java.io.{InputStream, File, ByteArrayInputStream}
 import java.util.{UUID, Random}
 import org.jets3t.service.utils.ServiceUtils
 import org.apache.commons.io.FileUtils
@@ -24,12 +24,15 @@ class S3InterfaceSpec extends SafeLogSpecification {
     //make a new prefix under which you should work
     val now = new DateTime(DateTimeZone.UTC)
     val prefix = s"tests/integration/$now/"
+    val workingDir = new File(FileUtils.getTempDirectory, UUID.randomUUID().toString)
+    FileUtils.forceMkdir(workingDir)
 
     //make sure we delete everything when the tests are done
     def after = {
       val logger = LoggerFactory.getLogger(getClass)
       logger.info("Deleting test info from s3 ($prefix)")
       s3.delete(prefix)
+      FileUtils.deleteDirectory(workingDir)
     }
 
     //test data:
@@ -39,7 +42,6 @@ class S3InterfaceSpec extends SafeLogSpecification {
     val fullDataHash = ServiceUtils.computeMD5Hash(bytes)
     val inputStream = () => {new SafeInputStream(new ByteArrayInputStream(bytes), "(local test data)")}
     val location = prefix + UUID.randomUUID().toString
-    val uploadDir = FileUtils.getTempDirectory
   }
 
   "listing objects" should {
@@ -47,34 +49,67 @@ class S3InterfaceSpec extends SafeLogSpecification {
       s3.listObjects(prefix) must be equalTo Set()
     }
     "return exactly the list of objects under the prefix" in new Context {
-      s3.save(inputStream(), prefix + "asdfe", uploadDir, dataLength*2)
-      s3.save(inputStream(), prefix + "asddd/thing/whatever", uploadDir, dataLength*2)
-      s3.save(inputStream(), prefix + "ffrrdd", uploadDir, dataLength*2)
+      s3.save(inputStream(), prefix + "asdfe", workingDir, dataLength*2)
+      s3.save(inputStream(), prefix + "asddd/thing/whatever", workingDir, dataLength*2)
+      s3.save(inputStream(), prefix + "ffrrdd", workingDir, dataLength*2)
       s3.listObjects(prefix + "asd").map(_.getKey) must be equalTo Set(prefix + "asdfe", prefix + "asddd/thing/whatever")
     }
   }
 
-  "saving data" should {
-    "create an identical file for single-part files" in new Context {
-
+  "uploading data" should {
+    "create the correct md5 hash for single-part files" in new Context {
+      s3.save(inputStream(), location, workingDir, dataLength*2)
+      s3.listObjects(location).head.getMd5HashAsBase64 must be equalTo ServiceUtils.toBase64(fullDataHash)
     }
-    "create an identical file for multi-part files" in new Context {
-
+    "create the correct md5 hash for multi-part files" in new Context {
+      s3.save(inputStream(), location, workingDir, dataLength / 2)
+      s3.listObjects(location).head.getMd5HashAsBase64 must be equalTo ServiceUtils.toBase64(fullDataHash)
     }
     "throw the correct exception and close the stream if the underlying data stream fails" in new Context {
+      def badInputStream(failure: Throwable) = {
+        new SafeInputStream(new InputStream() {
+          val data = List(1,2,3,4,5).toIterator
+          def read(): Int = {
+            if (data.hasNext) {
+              data.next()
+            } else {
+              throw failure
+            }
+          }
+        }, "unsafe input stream")
+      }
 
+      var stream = badInputStream(new Exception("fail"))
+      s3.save(stream, location, workingDir, dataLength*2) must throwAn[InaccessibleDataError]
+      stream.wasClosed must be equalTo true
+
+      stream = badInputStream(new Throwable("fail"))
+      s3.save(stream, location, workingDir, dataLength*2) must throwA[Throwable]
+      stream.wasClosed must be equalTo true
     }
   }
 
-  "downloading a file" should {
-    "save the exact same data into the file" in new Context {
-
+  "downloading data" should {
+    "create an identical file for single-part files" in new Context {
+      s3.save(inputStream(), location, workingDir, dataLength*2)
+      val file = new File(workingDir, UUID.randomUUID().toString)
+      s3.download(location, file)
+      FileUtils.readFileToByteArray(file).toList must be equalTo bytes.toList
+    }
+    "create an identical file for multi-part files" in new Context {
+      s3.save(inputStream(), location, workingDir, dataLength / 2)
+      val file = new File(workingDir, UUID.randomUUID().toString)
+      s3.download(location, file)
+      FileUtils.readFileToByteArray(file).toList must be equalTo bytes.toList
     }
     "throw a proper exception if the file is inaccessible" in new Context {
-
+      s3.save(inputStream(), location, workingDir, dataLength*2)
+      val file = new File("/path/that/does/not/exist")
+      s3.download(location, file) must throwAn[InaccessibleDataError]
     }
     "throw a proper exception if the remote path is invalid" in new Context {
-
+      val file = new File(workingDir, UUID.randomUUID().toString)
+      s3.download(prefix + "/path/that/does/not/exist", file) must throwAn[InaccessibleDataError]
     }
   }
 

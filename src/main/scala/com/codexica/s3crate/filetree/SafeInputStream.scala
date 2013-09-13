@@ -17,6 +17,9 @@ object SafeInputStream {
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
 class SafeInputStream(stream: InputStream, name: String) extends InputStream {
+  private var closeWasCalled = false
+
+  def wasClosed = closeWasCalled
 
   def read(): Int = Try(stream.read()).recoverWith(handler).get
 
@@ -29,6 +32,7 @@ class SafeInputStream(stream: InputStream, name: String) extends InputStream {
   override def available(): Int = Try(stream.available()).recoverWith(handler).get
 
   override def close() {
+    closeWasCalled = true
     Try(stream.close()).recoverWith(handler)
   }
 
