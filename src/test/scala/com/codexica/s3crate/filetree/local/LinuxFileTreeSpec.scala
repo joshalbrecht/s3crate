@@ -95,7 +95,15 @@ class LinuxFileTreeSpec extends Specification {
 
   "getting the permissions" should {
     "return the correct permissions" in new Context {
-      throw new NotImplementedError()
+      val file = new File("/tmp/linuxFilePermissionTest")
+      if (!file.exists()) {
+        file.createNewFile()
+      }
+      val path = Paths.get(file.toURI())
+      val permissions = Files.getPosixFilePermissions(path, LinkOption.NOFOLLOW_LINKS)
+      import collection.JavaConverters._ 
+
+      tree.getPermissions(file) must be equalTo(permissions.asScala.toSet)
     }
     "throw a FilePermissionError if the permissions cannot be determined because of permissions" in new Context {
       tree.getPermissions(new File("/root")) must throwA[FilePermissionError]
@@ -106,9 +114,28 @@ class LinuxFileTreeSpec extends Specification {
   }
 
   "getting the symlink path" should {
-    "return the correct symlink path" in new Context {
-      throw new NotImplementedError()
+    "return the None if symlink target is out of baseFolder" in new Context {
+      val linkToExternal = new File("/tmp/linuxFileSymlinkExternalTargetTest")
+      if (linkToExternal.exists()) {
+        assert(linkToExternal.delete())
+      }
+      val symlinkOutside = Files.createSymbolicLink(Paths.get(linkToExternal.getAbsolutePath), Paths.get(FileUtils.getUserDirectoryPath))
+
+      tree.getSymLinkPath(symlinkOutside.toFile()) must be equalTo None
+      
     }
+
+    "return the correct symlink path" in new Context {
+      val linkToInternal = new File("/tmp/linuxFileSymlinklinkInternalTargetTest")
+      if (linkToInternal.exists()) {
+        assert(linkToInternal.delete())
+      }
+      val symlinkOutside = Files.createSymbolicLink(Paths.get(linkToInternal.getAbsolutePath), Paths.get(FileUtils.getTempDirectoryPath()))
+
+      tree.getSymLinkPath(symlinkOutside.toFile()) must be equalTo None
+      
+    }
+      
     "throw a FilePermissionError if the symlink path cannot be determined because of permissions" in new Context {
       tree.getSymLinkPath(new File("/root")) must throwA[FilePermissionError]
     }
