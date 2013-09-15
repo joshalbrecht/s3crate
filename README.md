@@ -41,21 +41,29 @@ ListenableFileTree.
 in the FileTreeHistory, as well as methods for exploring the history, getting the latest versions, etc
 
 The basic synchronization process (of local files in a LinuxFileTree to a remote S3FileHistory) works like this:
+
 1. The local file tree continually generates a set of paths to be inspected
+
 2. The TaskMaster actor (single instance) tracks which file change events have been dealt with, and responds to requests
 for more work by sending a change event to handle
+
 3. The Synchronizer actor is just a proxy between the workers and TaskMaster. It filters messages (if you want to
 exclude certain files, for example) and forwards other requests on to the SynchronizationWorkers (there is a pool of these)
+
 4. Each worker works on one synchronization task at a time. When a new task is started, it inspects the path locally and
 remotely to determine if anything needs to be synchronized. In the case of deletes, meta data changes, renames, etc, just new
 metadata is sent and no new file data needs to be uploaded. In the case of new files or updates to existing files, a
 new blob is first uploaded, and then metadata linking to that blob is uploaded.
+
 6. When blobs (file contents) are uploaded, each is encrypted with a unique symmetric key, which is stored, encrypted,
 in the meta data object associated with that blob.
+
 7. Blobs are zipped BEFORE being encrypted for efficiency.
+
 8. Uploaded meta data is encrypted as well, using a separate set of keys. This means that you can make it impossible for
  the writing process to read the contents of the file after it is written (but you can read the contents from another
  device that does contain the private key, for example). Note that metadata must always be accessible by the writing process.
+
 9. Future expansions include support for snapshotting filesystems such that deltas can be easily generated, zipped, encrypted
 and uploaded, and then a list of blobs will be contained in the meta data object (and all must be downloaded to get the most recent data).
 Additionally, it would be nice to be able to actually download your files, or see the status of the upload process.
