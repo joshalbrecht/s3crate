@@ -5,6 +5,8 @@ import org.xerial.snappy.{SnappyOutputStream, Snappy, SnappyInputStream}
 import java.io.{ByteArrayOutputStream, InputStream}
 import org.apache.commons.io.IOUtils
 import com.Ostermiller.util.CircularByteBuffer
+import com.jcabi.aspects.Loggable
+import java.util.concurrent.TimeUnit
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -24,6 +26,7 @@ class Compressor {
    * @throws exceptions from reading a SafeInputStream
    * @return A pair of "whether the stream was compressed" and the actual stream (compressed or not)
    */
+  @Loggable(value = Loggable.DEBUG, limit = 5, unit = TimeUnit.SECONDS, prepend = true)
   def compress(inputGenerator: () => SafeInputStream): (CompressionMethod, SafeInputStream) = {
     val input = inputGenerator()
     val ratio = compressionRatio(inputGenerator(), numBytesToTryCompressing)
@@ -82,6 +85,7 @@ class Compressor {
    * @throws exceptions from reading a SafeInputStream
    * @return Return the unzipped version of the data
    */
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   def decompress(input: SafeInputStream, method: CompressionMethod): SafeInputStream = {
     method match {
       case SnappyCompression() => new SafeInputStream(new SnappyInputStream(input), s"unzipped($input)")
@@ -95,6 +99,7 @@ class Compressor {
    * @throws exceptions from reading a SafeInputStream
    * @return After reading the bytes, try compressing them with snappy and return the compression ratio.
    */
+  @Loggable(value = Loggable.DEBUG, limit = 5, unit = TimeUnit.SECONDS, prepend = true)
   private def compressionRatio(stream: SafeInputStream, numBytes: Int): Double = {
     val buffer = new Array[Byte](numBytes)
     val numBytesRead = try {

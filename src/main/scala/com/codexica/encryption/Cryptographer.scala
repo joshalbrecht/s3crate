@@ -218,7 +218,10 @@ class Cryptographer(file: File, password: Array[Char]) {
   }
 
   //TODO:  implement! Note that you'll almost certainly have to read from one, write to a buffer, and then read from
-  //the buffer. See Compressor for an example that does the same thing, but with compression (not encryption)
+  //the buffer. See Compressor for an example that does the same thing, but with compression (not encryption). And see
+  //the second test in CryptographerIntegrationSpec for an example that uses the deprecated methods in this class
+  //to do symmetric key encryption--basically you just have to adapt that to make the input and output into streams,
+  //and then convert it to use AES instead of DES
   /**
    * Return an input stream that represents an encrypted version of the original input stream.
    *
@@ -236,7 +239,10 @@ class Cryptographer(file: File, password: Array[Char]) {
   }
 
   //TODO:  implement! Note that you'll almost certainly have to read from one, write to a buffer, and then read from
-  //the buffer. See Compressor for an example that does the same thing, but with compression (not encryption)
+  //the buffer. See Compressor for an example that does the same thing, but with compression (not encryption). And see
+  //the second test in CryptographerIntegrationSpec for an example that uses the deprecated methods in this class
+  //to do symmetric key encryption--basically you just have to adapt that to make the input and output into streams,
+  //and then convert it to use AES instead of DES
   /**
    * Return an input stream that represents a decrypted version of the original input stream.
    *

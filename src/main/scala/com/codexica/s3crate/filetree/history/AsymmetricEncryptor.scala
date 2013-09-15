@@ -1,6 +1,8 @@
 package com.codexica.s3crate.filetree.history
 
 import com.codexica.encryption.{Cryptographer, KeyPairReference}
+import com.jcabi.aspects.Loggable
+import java.util.concurrent.TimeUnit
 
 /**
  * Apply a public key to encrypt/decrypt data directly. Note that you should NOTE use this for anything sizable, since
@@ -20,6 +22,7 @@ class AsymmetricEncryptor(keyIdOpt: Option[KeyPairReference], crypto: Cryptograp
    * @param data Data to encrypt
    * @return Encrypted data
    */
+  @Loggable(value = Loggable.DEBUG, limit = 5, unit = TimeUnit.SECONDS, prepend = true)
   def encrypt(data: Array[Byte]): Array[Byte] = {
     keyIdOpt match {
       case None => data
@@ -32,6 +35,7 @@ class AsymmetricEncryptor(keyIdOpt: Option[KeyPairReference], crypto: Cryptograp
    * @throws MissingKeyError if there is no corresponding private key for the given key (ie, can't decrypt data)
    * @return the decrypted data
    */
+  @Loggable(value = Loggable.DEBUG, limit = 5, unit = TimeUnit.SECONDS, prepend = true)
   def decrypt(data: Array[Byte]): Array[Byte] = {
     keyIdOpt match {
       case None => data

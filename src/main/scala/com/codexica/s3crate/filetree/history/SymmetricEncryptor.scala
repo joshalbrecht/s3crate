@@ -3,6 +3,8 @@ package com.codexica.s3crate.filetree.history
 import com.codexica.common.SafeInputStream
 import com.codexica.encryption._
 import play.api.libs.json.Json
+import com.jcabi.aspects.Loggable
+import java.util.concurrent.TimeUnit
 
 /**
  * Transparently encrypt a stream if we were configured with a key to use for the encryption, otherwise effectively
@@ -18,6 +20,7 @@ class SymmetricEncryptor(keyIdOpt: Option[KeyPairReference], crypto: Cryptograph
    * @param input The stream to (possibly) encrypt
    * @return A tuple of encryption details (if the stream was encrypted) and the transformed inputstream
    */
+  @Loggable(value = Loggable.TRACE, limit = 6, unit = TimeUnit.SECONDS, prepend = true)
   def encrypt(input: SafeInputStream): (Option[EncryptionDetails], SafeInputStream) = {
     keyIdOpt match {
       case None => (None, input)
@@ -35,6 +38,7 @@ class SymmetricEncryptor(keyIdOpt: Option[KeyPairReference], crypto: Cryptograph
    * @param method The method which was used to encrypt the stream, if any
    * @return
    */
+  @Loggable(value = Loggable.TRACE, limit = 2, unit = TimeUnit.SECONDS, prepend = true)
   def decrypt(input: SafeInputStream, method: Option[EncryptionDetails]): (SafeInputStream) = {
     method match {
       case None => input
@@ -52,6 +56,7 @@ class SymmetricEncryptor(keyIdOpt: Option[KeyPairReference], crypto: Cryptograph
    * @param keyRef the public key to use to encode the symmetric key
    * @return The encrypted blobkey
    */
+  @Loggable(value = Loggable.TRACE, limit = 2, unit = TimeUnit.SECONDS, prepend = true)
   private def encryptKey(blobKey: SymmetricKey, keyRef: KeyPairReference): Array[Byte] = {
     val keyData = Json.stringify(Json.toJson(blobKey)).getBytes("UTF-8")
     crypto.publicEncrypt(keyData, keyRef)
@@ -64,6 +69,7 @@ class SymmetricEncryptor(keyIdOpt: Option[KeyPairReference], crypto: Cryptograph
    * @param keyRef The private key to use for decrypting the data
    * @return The decrypted symmetric key
    */
+  @Loggable(value = Loggable.TRACE, limit = 2, unit = TimeUnit.SECONDS, prepend = true)
   private def decryptKey(encodedKey: Array[Byte], keyRef: KeyPairReference): SymmetricKey = {
     val decryptedData = crypto.publicDecrypt(encodedKey, keyRef)
     Json.parse(decryptedData).as[SymmetricKey]

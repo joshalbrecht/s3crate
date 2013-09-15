@@ -1,7 +1,7 @@
 package com.codexica.s3crate.filetree.history
 
 import com.codexica.common.SafeLogSpecification
-import com.codexica.encryption.{MissingKeyError, RSA, Cryptographer}
+import com.codexica.encryption.{CryptographicTestBase, MissingKeyError, RSA, Cryptographer}
 import java.io.File
 import org.apache.commons.io.FileUtils
 import java.util.{Random, UUID}
@@ -11,14 +11,8 @@ import java.util.{Random, UUID}
  */
 class AsymmetricEncryptorSpec extends SafeLogSpecification {
 
-  trait Context extends BaseContext {
-    val keystoreFile = new File(FileUtils.getTempDirectory, UUID.randomUUID.toString)
-    val keystorePassword = "password".toCharArray
-    val crypto = new Cryptographer(keystoreFile, keystorePassword)
-    val dataLength = 32874
-    val data = new Array[Byte](dataLength)
-    new Random(27831).nextBytes(data)
-    val keyType = RSA(1024)
+  trait Context extends CryptographicTestBase with BaseContext {
+
   }
 
   "Encryption and decryption" should {

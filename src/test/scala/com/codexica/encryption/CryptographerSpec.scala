@@ -12,23 +12,8 @@ import org.specs2.mutable.After
  */
 class CryptographerSpec extends SafeLogSpecification {
 
-  trait Context extends After with BaseContext {
-    val keystoreFile = new File(FileUtils.getTempDirectory, UUID.randomUUID.toString)
-    val keystorePassword = "password".toCharArray
-    val crypto = new Cryptographer(keystoreFile, keystorePassword)
-    val dataLength = 32874
-    val data = new Array[Byte](dataLength)
-    new Random(27831).nextBytes(data)
-    val keyType = RSA(1024)
+  trait Context extends CryptographicTestBase with BaseContext {
 
-    //make sure we delete everything when the tests are done
-    def after = {
-      val logger = LoggerFactory.getLogger(getClass)
-      if (keystoreFile.exists()) {
-        logger.info(s"Cleaning up keystore $keystoreFile")
-        assert(keystoreFile.delete())
-      }
-    }
   }
 
   "asymmetric keys" should {
