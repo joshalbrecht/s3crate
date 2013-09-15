@@ -40,7 +40,10 @@ class Cryptographer(file: File, password: Array[Char]) {
 
   //Initialization
   val logger = LoggerFactory.getLogger(getClass)
-  //TODO: warn above if password is insufficiently long, link to xkcd
+  if (password.length < 32) {
+    logger.warn("This is an important file. You should REALLY use a password longer than 32 letters. " +
+      "See here for an example of how to remember one like that: https://xkcd.com/936/")
+  }
   if (Security.getProvider("BC") == null) {
     logger.info("Adding BouncyCastle cryptography provider")
     Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider())
@@ -264,7 +267,7 @@ class Cryptographer(file: File, password: Array[Char]) {
    */
   @Loggable(value = Loggable.DEBUG, limit = 300, unit = TimeUnit.MILLISECONDS, prepend = true)
   private def initializeRandom(): SecureRandom = {
-    //TODO: hash other random stuff in here, like current time, nanos running, thread name, pid, free memory, mac address, hostname, etc to increase entropy
+    //TODO: hash other random stuff into the seed, like current time, nanos running, thread name, pid, free memory, mac address, hostname, etc to increase entropy
     //TODO (josh): also, make a wrapper around this class, and ensure that it is periodically re-seeded: http://stackoverflow.com/questions/295628/securerandom-init-once-or-every-time-it-is-needed
     //TODO (josh): Ensure that all calls to bouncycastle pass in our wrapped SecureRandom, where possible, since creating one can randomly block forever: http://www.mattnworb.com/post/14312102134/the-dangers-of-java-security-securerandom
     val hashedPasswordAndStuff = password.map(_.toByte)
