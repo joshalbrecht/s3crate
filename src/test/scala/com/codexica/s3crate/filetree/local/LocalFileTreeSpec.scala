@@ -1,18 +1,17 @@
 package com.codexica.s3crate.filetree.local
 
-import org.specs2.mutable.Specification
-import org.specs2.specification.Scope
 import java.io.File
 import org.apache.commons.io.FileUtils
 import scala.concurrent.ExecutionContext
 import com.codexica.s3crate.filetree.FolderType
+import com.codexica.common.SafeLogSpecification
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class LocalFileTreeSpec extends Specification {
+class LocalFileTreeSpec extends SafeLogSpecification {
 
-  trait Context extends Scope {
+  trait Context extends BaseContext {
     val tree: LocalFileTree = new LinuxFileTree(new File(FileUtils.getTempDirectory, "_LinuxFileTreeSpecTest"), ExecutionContext.Implicits.global)
   }
 

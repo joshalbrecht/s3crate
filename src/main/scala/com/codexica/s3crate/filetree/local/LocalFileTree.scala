@@ -4,7 +4,7 @@ import com.codexica.s3crate.filetree._
 import scala.concurrent.{ExecutionContext, Future}
 import java.io._
 import com.codexica.s3crate.filetree.history.FilePathState
-import java.nio.file.{LinkOption, Files, Paths}
+import java.nio.file._
 import java.nio.file.attribute.{PosixFilePermission, FileTime}
 import org.joda.time.{DateTimeZone, DateTime}
 import org.apache.commons.io.{IOUtils, FileUtils}
@@ -16,6 +16,16 @@ import com.codexica.s3crate.filetree.FileType
 import com.codexica.s3crate.filetree.FilePathEvent
 import com.codexica.s3crate.filetree.FolderType
 import com.codexica.common.{InaccessibleDataError, SafeInputStream, UnexpectedError, CodexicaError}
+import com.codexica.s3crate.filetree.SymLinkType
+import com.codexica.s3crate.filetree.FileType
+import com.codexica.s3crate.filetree.FilePathEvent
+import com.codexica.s3crate.filetree.FolderType
+import com.codexica.s3crate.filetree.SymLinkType
+import com.codexica.s3crate.filetree.FileType
+import com.codexica.s3crate.filetree.FilePathEvent
+import com.codexica.s3crate.filetree.FolderType
+import com.jcabi.aspects.Loggable
+import java.util.concurrent.TimeUnit
 
 /**
  * A locally mounted file system. Should be accessibly by working with java.io.File's
@@ -26,13 +36,45 @@ import com.codexica.common.{InaccessibleDataError, SafeInputStream, UnexpectedEr
  */
 abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionContext) extends ListenableFileTree with ReadableFileTree with WritableFileTree {
 
+  /**
+   * @param file For this file
+   * @throws InaccessibleDataError as described in withWrappedError
+   * @return Return the appropriate FilePathType (folder, file, or symlink)
+   */
   def getFileType(file: File): FilePathType
+
+  /**
+   * @param file For this file
+   * @throws InaccessibleDataError as described in withWrappedError
+   * @return Return the appropriate FilePathType (folder, file, or symlink)
+   */
   def getOwner(file: File): String
+
+  /**
+   * @param file For this file
+   * @throws InaccessibleDataError as described in withWrappedError
+   * @return Return the appropriate FilePathType (folder, file, or symlink)
+   */
   def getGroup(file: File): String
+
+  /**
+   * @param file For this file
+   * @throws InaccessibleDataError as described in withWrappedError
+   * @return Return the appropriate FilePathType (folder, file, or symlink)
+   */
   def getPermissions(file: File): Set[PosixFilePermission]
+
+  /**
+   * @param file For this file
+   * @throws AssertionError if this is called for anything except a sym link
+   * @throws InaccessibleDataError as described in withWrappedError
+   * @return Return the symlink target as a FilePath (ie, relative to baseDir). The target does not need to exist OR
+   *         be accessible. Return None if the symlink points outside of baseDir
+   */
   def getSymLinkPath(file: File): Option[FilePath]
 
   //TODO: eventually use the fancier "file watcher" mechanism
+  @Loggable(value = Loggable.TRACE, limit = 1, unit = TimeUnit.MINUTES, prepend = true)
   override def listen(): PathGenerator = {
     //list all of the files
     val initialFiles = FileUtils.listFilesAndDirs(baseFolder, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE).par.map(file => {
@@ -41,13 +83,15 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
     new PathGenerator(initialFiles, this)
   }
 
+  @Loggable(value = Loggable.TRACE, limit = 500, unit = TimeUnit.MILLISECONDS, prepend = true)
   override def read(path: FilePath): SafeInputStream = {
     SafeInputStream.fromFile(getFile(path))
   }
 
+  @Loggable(value = Loggable.TRACE, limit = 500, unit = TimeUnit.MILLISECONDS, prepend = true)
   override def metadata(path: FilePath): Future[FilePathState] = Future {
-    try {
-      val file = getFile(path)
+    val file = getFile(path)
+    withWrappedError(file, "get metadata") {case (fileId) => {
       val exists = file.exists()
       val fileType = getFileType(file)
       val symLinkPath = fileType match {
@@ -71,14 +115,14 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
         None
       }
       FilePathState(path, exists, metadata)
-    } catch {
-      case e: CodexicaError => throw e
-      //TODO:  improve the list of things that can be thrown here so that all appropriate errors are wrapped
-      case e: IOException => throw new InaccessibleDataError("Failure fetching metadata from file tree", e)
-      case NonFatal(e) => throw new UnexpectedError("Unexpected error while fetching metadata from file tree", e)
-    }
+    }}
   }
 
+  /**
+   * @param file For this File
+   * @return return the last time that it was modified
+   */
+  @Loggable(value = Loggable.TRACE, limit = 500, unit = TimeUnit.MILLISECONDS, prepend = true)
   protected[this] def getLastModified(file: File): DateTime = {
     val attributes = Files.readAttributes(Paths.get(file.getAbsolutePath), "lastModifiedTime", LinkOption.NOFOLLOW_LINKS)
     attributes.get("lastModifiedTime") match {
@@ -86,11 +130,61 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
     }
   }
 
+  /**
+   * @param file Converts this File
+   * @return into a FilePath
+   */
   protected[this] def getFilePath(file: File): FilePath = {
     FilePath(Paths.get(baseFolder.getAbsolutePath).relativize(Paths.get(file.getAbsolutePath)).toString)
   }
 
+  /**
+   * @param path Converts this FilePath
+   * @return into a File
+   */
   protected[this] def getFile(path: FilePath): File = {
     new File(baseFolder, path.path)
+  }
+
+  /**
+   * @param file convert this File
+   * @return into a Path
+   */
+  protected[this] def getPath(file: File): Path = {
+    withWrappedError(file, "get the file path") {case (fileId) => {
+      val path = Paths.get(file.toURI)
+      if (Files.notExists(path)) throw new FileMissingError(s"does not exist: $fileId", null)
+      if (!Files.isReadable(path)) throw new FilePermissionError(s"not readable: $fileId", null)
+      path
+    }}
+  }
+
+  /**
+   * Consolidated error handling for access to the file-system. Turns the errors into something with semantics about
+   * how it should be handled.
+   *
+   * @param file The file to operate on
+   * @param action A description of what you're trying to do
+   * @param func The actual operation to perform on the file. Passed fileId for easier/safer/more consistent logging
+   * @tparam A The return value
+   * @throws FilePermissionError if the file cannot be accessed for permissioning reasons
+   * @throws FileMissingError if the file is missing
+   * @throws InaccessibleDataError wrapping all other non fatal errors
+   * @return The value from func
+   */
+  protected[this] def withWrappedError[A](file: File, action: String)(func: (String) => A): A = {
+    val fileId = try {
+      file.getAbsolutePath
+    } catch {
+      case e: SecurityException => throw new FilePermissionError(s"Failed to $action because the file is unavailable", e)
+    }
+    val failureString = s"Failed to $action on $fileId because "
+    try {
+      func(fileId)
+    } catch {
+      case e: FileSystemNotFoundException => throw new FileMissingError(s"the filesystem was not found because of ${e.getMessage}", e)
+      case e: SecurityException => throw new FilePermissionError(s"there is no permission because of ${e.getMessage}", e)
+      case e: IOException => throw new InaccessibleDataError(failureString + s"an error happened while accessing ${e.getMessage}", e)
+    }
   }
 }

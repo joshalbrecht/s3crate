@@ -1,7 +1,5 @@
 package com.codexica.s3crate.filetree.local
 
-import org.specs2.mutable.Specification
-import org.specs2.specification.Scope
 import java.io.File
 import org.apache.commons.io.FileUtils
 import scala.concurrent.ExecutionContext
@@ -9,24 +7,21 @@ import com.codexica.s3crate.filetree._
 import java.nio.file.{Paths, Files}
 import com.codexica.s3crate.filetree.FileType
 import com.codexica.s3crate.filetree.FolderType
-import org.junit.runner.RunWith
-import org.specs2.runner.JUnitRunner
-import java.nio.file.attribute.UserPrincipal
-import java.nio.file.attribute.UserPrincipalLookupService
-import java.nio.file.FileSystem
-import java.nio.file.attribute.GroupPrincipal
 import java.nio.file.LinkOption
 import java.nio.file.attribute.PosixFileAttributes
 import java.nio.file.attribute.PosixFileAttributeView
+import com.codexica.common.SafeLogSpecification
+
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
 
-@RunWith(classOf[JUnitRunner])
-class LinuxFileTreeSpec extends Specification {
+class LinuxFileTreeSpec extends SafeLogSpecification {
 
-  trait Context extends Scope {
-    val tree = new LinuxFileTree(new File(FileUtils.getTempDirectory, "_LinuxFileTreeSpecTest"), ExecutionContext.Implicits.global)
+  trait Context extends BaseContext {
+    val baseFolder = new File(FileUtils.getTempDirectory, "_LinuxFileTreeSpecTest")
+    val tree = new LinuxFileTree(baseFolder, ExecutionContext.Implicits.global)
+    val homeUri = Paths.get(new File(System.getProperty("user.home")).toURI)
   }
 
   "getting the file type" should {
@@ -60,10 +55,10 @@ class LinuxFileTreeSpec extends Specification {
       if (!file.exists()) {
         file.createNewFile()
       }
-      val path = Paths.get(file.toURI())
-      val owner: UserPrincipal = Files.getOwner(Paths.get(new File(System.getProperty("user.home")).toURI()))
+      val path = Paths.get(file.toURI)
+      val owner = Files.getOwner(homeUri)
       Files.setOwner(path, owner)
-      tree.getOwner(file) must be equalTo(owner.getName())
+      tree.getOwner(file) must be equalTo owner.getName
     }
     "throw a FilePermissionError if the user name cannot be determined because of permissions" in new Context {
       tree.getOwner(new File("/root")) must throwA[FilePermissionError]
@@ -79,11 +74,11 @@ class LinuxFileTreeSpec extends Specification {
       if (!file.exists()) {
         file.createNewFile()
       }
-      val path = Paths.get(file.toURI())
-      val group: GroupPrincipal = Files.readAttributes(Paths.get(new File(System.getProperty("user.home")).toURI()), classOf[PosixFileAttributes], LinkOption.NOFOLLOW_LINKS).group()
-      val view: PosixFileAttributeView = Files.getFileAttributeView(path,classOf[PosixFileAttributeView]);
+      val path = Paths.get(file.toURI)
+      val group = Files.readAttributes(homeUri, classOf[PosixFileAttributes], LinkOption.NOFOLLOW_LINKS).group()
+      val view = Files.getFileAttributeView(path,classOf[PosixFileAttributeView])
       view.setGroup(group)
-      tree.getOwner(file) must be equalTo(group.getName())
+      tree.getOwner(file) must be equalTo group.getName
     }
     "throw a FilePermissionError if the group name cannot be determined because of permissions" in new Context {
       tree.getGroup(new File("/root")) must throwA[FilePermissionError]
@@ -99,11 +94,10 @@ class LinuxFileTreeSpec extends Specification {
       if (!file.exists()) {
         file.createNewFile()
       }
-      val path = Paths.get(file.toURI())
+      val path = Paths.get(file.toURI)
       val permissions = Files.getPosixFilePermissions(path, LinkOption.NOFOLLOW_LINKS)
-      import collection.JavaConverters._ 
-
-      tree.getPermissions(file) must be equalTo(permissions.asScala.toSet)
+      import collection.JavaConverters._
+      tree.getPermissions(file) must be equalTo permissions.asScala.toSet
     }
     "throw a FilePermissionError if the permissions cannot be determined because of permissions" in new Context {
       tree.getPermissions(new File("/root")) must throwA[FilePermissionError]
@@ -119,10 +113,9 @@ class LinuxFileTreeSpec extends Specification {
       if (linkToExternal.exists()) {
         assert(linkToExternal.delete())
       }
-      val symlinkOutside = Files.createSymbolicLink(Paths.get(linkToExternal.getAbsolutePath), Paths.get(FileUtils.getUserDirectoryPath))
-
-      tree.getSymLinkPath(symlinkOutside.toFile()) must be equalTo None
-      
+      val homePath = Paths.get(FileUtils.getUserDirectoryPath)
+      val symlinkOutside = Files.createSymbolicLink(Paths.get(linkToExternal.getAbsolutePath), homePath)
+      tree.getSymLinkPath(symlinkOutside.toFile) must be equalTo None
     }
 
     "return the correct symlink path" in new Context {
@@ -130,10 +123,9 @@ class LinuxFileTreeSpec extends Specification {
       if (linkToInternal.exists()) {
         assert(linkToInternal.delete())
       }
-      val symlinkOutside = Files.createSymbolicLink(Paths.get(linkToInternal.getAbsolutePath), Paths.get(FileUtils.getTempDirectoryPath()))
-
-      tree.getSymLinkPath(symlinkOutside.toFile()) must be equalTo None
-      
+      val tempPath = Paths.get(FileUtils.getTempDirectoryPath)
+      val symlinkOutside = Files.createSymbolicLink(Paths.get(linkToInternal.getAbsolutePath), tempPath)
+      tree.getSymLinkPath(symlinkOutside.toFile) must be equalTo None
     }
       
     "throw a FilePermissionError if the symlink path cannot be determined because of permissions" in new Context {

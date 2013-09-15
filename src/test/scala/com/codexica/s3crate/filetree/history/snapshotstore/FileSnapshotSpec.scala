@@ -1,18 +1,18 @@
 package com.codexica.s3crate.filetree.history.snapshotstore
 
 import play.api.libs.json.Json
-import org.specs2.mutable.Specification
 import java.util.UUID
 import org.joda.time.DateTime
 import com.codexica.s3crate.filetree.{FileType, FileMetaData, FilePath}
 import com.codexica.s3crate.filetree.history.{SnappyCompression, FilePathState}
 import com.codexica.encryption.{KeyPairReference, EncryptionDetails}
 import java.nio.file.attribute.PosixFilePermission
+import com.codexica.common.SafeLogSpecification
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class FileSnapshotSpec extends Specification {
+class FileSnapshotSpec extends SafeLogSpecification {
   "Serialization" should {
     "deserialize as exactly the same value" in {
       val state = FilePathState(
@@ -36,7 +36,7 @@ class FileSnapshotSpec extends Specification {
         DataBlob(
           "some/path",
           Option(EncryptionDetails(
-            "secret_key".getBytes,
+            "secret_key".getBytes.toList,
             KeyPairReference(UUID.randomUUID())
           )),
           SnappyCompression()
