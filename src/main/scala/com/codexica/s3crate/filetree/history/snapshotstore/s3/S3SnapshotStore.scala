@@ -1,17 +1,17 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
 import com.codexica.common.{SafeInputStream, FutureUtils}
+import com.codexica.encryption.{Cryptographer, KeyPairReference}
+import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, FileSnapshot, RemoteFileSystemTypes, WritableSnapshotStore, ReadableSnapshotStore}
 import com.codexica.s3crate.filetree.history.{AsymmetricEncryptor, Compressor, SymmetricEncryptor, FilePathState}
 import com.codexica.s3crate.filetree.{WritableFileTree, FilePath}
 import com.google.inject.Inject
+import java.io.{File, FileOutputStream, BufferedOutputStream}
 import java.util.UUID
 import org.apache.commons.io.FileUtils
+import org.codehaus.jackson.JsonParseException
 import play.api.libs.json.Json
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.control.NonFatal
-import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, FileSnapshot, RemoteFileSystemTypes, WritableSnapshotStore, ReadableSnapshotStore}
-import java.io.{File, FileOutputStream, BufferedOutputStream}
-import com.codexica.encryption.{Cryptographer, KeyPairReference}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -60,6 +60,13 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
     //load all data
     Future.sequence(prefixes.map(prefix => {
       Future {
+        //TODO: actually, listing things like this may still be kind of slow. Ideally you want to list things like this:
+        //asdf4fsdf/meta
+        //goe8hgdfg/meta
+        //f3978ygdf/meta
+        //instead, because each of those will go to different shards in S3, instead of all going to the same one.
+        //we could probably work around this by making the meta prefix super short, like "m", but still...
+        //TODO:  also would be worth measuring the performance difference of the two
         s3.listObjects(metaFolder + "/" + prefix)
       }.flatMap(objects => {
         FutureUtils.sequenceOrBailOut(objects.map(obj =>
@@ -79,21 +86,19 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
 
     val remotePath = metaFolder + "/" + id.toString
     val file = new File(metaDir, id.toString)
-    if (file.exists()) {
-      try {
-        readMetaFile(file)
-      } catch {
-        case NonFatal(e) => {
-          if (file.exists()) {
-            assert(file.delete())
-          }
-          s3.download(remotePath, file)
-          readMetaFile(file)
-        }
-      }
-    } else {
+    if (!file.exists()) {
       s3.download(remotePath, file)
+    }
+    try {
       readMetaFile(file)
+    } catch {
+      case e: JsonParseException => {
+        if (file.exists()) {
+          assert(file.delete())
+        }
+        s3.download(remotePath, file)
+        readMetaFile(file)
+      }
     }
   }
 

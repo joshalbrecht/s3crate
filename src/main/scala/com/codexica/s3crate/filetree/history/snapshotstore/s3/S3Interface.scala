@@ -32,16 +32,10 @@ trait S3Interface {
   def save(data: SafeInputStream, blobLocation: String, uploadDir: File, maxPartSize: Long): S3Object
 
   /**
-   * @param obj Download the data from this object
-   * @param file And save it into this file
-   * @throws InaccessibleDataError if there were problems with S3 or the file
-   */
-  def download(obj: S3Object, file: File)
-
-  /**
    * @param path Download the data from this path
    * @param file And save it into this file
    * @throws InaccessibleDataError if there were problems with S3 or the file
+   * @throws IllegalArgumentException if the path does not exist
    */
   def download(path: String, file: File)
 

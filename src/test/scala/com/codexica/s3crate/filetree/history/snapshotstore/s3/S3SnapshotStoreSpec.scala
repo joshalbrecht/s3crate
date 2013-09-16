@@ -1,11 +1,16 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import com.codexica.common.SafeLogSpecification
-import com.codexica.s3crate.filetree.history.Compressor
+import com.codexica.common.{InaccessibleDataError, SafeLogSpecification}
+import com.codexica.s3crate.filetree.FilePath
+import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, FileSnapshot}
+import com.codexica.s3crate.filetree.history.{FilePathState, NoCompression, Compressor}
+import java.io.File
 import java.util.UUID
+import org.apache.commons.io.FileUtils
 import org.jets3t.service.model.S3Object
-import org.scalamock.FunctionAdapter1
 import org.scalamock.specs2.MockFactory
+import org.scalamock.{FunctionAdapter2, FunctionAdapter1}
+import play.api.libs.json.Json
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
 
@@ -19,6 +24,11 @@ class S3SnapshotStoreSpec extends SafeLogSpecification with MockFactory {
     val ev = ExecutionContext.Implicits.global
     val remotePath = "some/path"
     val snapshotStore = new S3SnapshotStore(s3, remotePath, ev, new Compressor(), None, None, null)
+    val snapshot = FileSnapshot(UUID.randomUUID(),
+      DataBlob("location", None, NoCompression()),
+      FilePathState(FilePath("somewhere"), false, None),
+      None)
+    val jsonSnapshot = Json.stringify(Json.toJson(snapshot))
   }
 
   "listing all snapshots" should {
@@ -47,22 +57,52 @@ class S3SnapshotStoreSpec extends SafeLogSpecification with MockFactory {
       )
     }
     "contain an exception if listing failed" in new Context {
-
+      (s3.listObjects _).expects(new FunctionAdapter1((prefix: String) => {
+        prefix.endsWith("53")
+      })).throwing(new InaccessibleDataError("test failure", null))
+      (s3.listObjects _).expects(new FunctionAdapter1((prefix: String) => {
+        true
+      })).returning(Set()).anyNumberOfTimes()
+      Await.result(snapshotStore.list(), Duration.Inf) must throwAn[InaccessibleDataError]
     }
   }
 
   "reading a snapshot id" should {
-    "download the snapshot if it doesnt exist" in new Context {
-
+    "download the snapshot if it doesn't exist" in new Context {
+      (s3.download(_:String, _:File)).expects(new FunctionAdapter2((path: String, file: File) => {
+        path.endsWith(snapshot.id.toString) must be equalTo true
+        FileUtils.write(file, jsonSnapshot)
+        true
+      }))
+      val snapshotFuture = snapshotStore.read(snapshot.id)
+      Await.result(snapshotFuture, Duration.Inf) must be equalTo snapshot
     }
     "return the snapshot immediately if it exists in the folder" in new Context {
-
+      (s3.download(_:String, _:File)).expects(new FunctionAdapter2((path: String, file: File) => {
+        FileUtils.write(file, jsonSnapshot)
+        true
+      }))
+      Await.result(snapshotStore.read(snapshot.id), Duration.Inf) must be equalTo snapshot
+      Await.result(snapshotStore.read(snapshot.id), Duration.Inf) must be equalTo snapshot
     }
     "download and return the snapshot if there is a corrupted snapshot in the folder" in new Context {
-
+      var numCalls = 0
+      (s3.download(_:String, _:File)).expects(new FunctionAdapter2((path: String, file: File) => {
+        if (numCalls == 0) {
+          FileUtils.write(file, "not actually json")
+        } else {
+          FileUtils.write(file, jsonSnapshot)
+        }
+        numCalls += 1
+        true
+      })).twice()
+      Await.result(snapshotStore.read(snapshot.id), Duration.Inf) must be equalTo snapshot
     }
-    "return an invalid state exception if a bad id is passed in" in new Context {
-
+    "return an IllegalArgumentException if a bad id is passed in" in new Context {
+      (s3.download(_:String, _:File)).expects(new FunctionAdapter2((path: String, file: File) => {
+        true
+      })).throwing(new IllegalArgumentException("bad path"))
+      Await.result(snapshotStore.read(snapshot.id), Duration.Inf) must throwAn[IllegalArgumentException]
     }
   }
 

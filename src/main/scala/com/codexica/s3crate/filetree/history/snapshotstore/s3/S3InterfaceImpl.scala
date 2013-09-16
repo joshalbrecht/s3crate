@@ -13,6 +13,8 @@ import com.google.inject.Inject
 import org.jets3t.service.model.container.ObjectKeyAndVersion
 import scala.collection.JavaConversions._
 import com.codexica.common.{InaccessibleDataError, SafeInputStream}
+import org.jets3t.service.S3ServiceException
+import scala.util.control.NonFatal
 
 /**
  * A wrapper around the JetS3t interface to S3 for simplicity and testing
@@ -52,17 +54,20 @@ protected[s3] class S3InterfaceImpl @Inject() (s3: RestS3Service, bucket: S3Buck
   }
 
   @Loggable(value = Loggable.DEBUG, limit = 12, unit = TimeUnit.HOURS, prepend = true)
-  override def download(obj: S3Object, file: File) {
-    val input = new BufferedInputStream(obj.getDataInputStream)
-    val output = new BufferedOutputStream(new FileOutputStream(file))
-    IOUtils.copy(input, output)
-    input.close()
-    output.close()
-  }
-
-  @Loggable(value = Loggable.DEBUG, limit = 12, unit = TimeUnit.HOURS, prepend = true)
   override def download(path: String, file: File) {
-    download(s3.getObject(bucket.getName, path), file)
+    val s3Object = try {
+      s3.getObject(bucket.getName, path)
+    } catch {
+      case e: S3ServiceException => {
+        val temp = e
+        if (e.getS3ErrorCode == "Could not find object") {
+          throw new IllegalArgumentException(s"Could not find $path")
+        } else {
+          throw new InaccessibleDataError(s"Could not access $path", e)
+        }
+      }
+    }
+    download(s3Object, file)
   }
 
   //Note: this implementation may take a long time. We currently don't care because we only use it for testing...
@@ -78,6 +83,27 @@ protected[s3] class S3InterfaceImpl @Inject() (s3: RestS3Service, bucket: S3Buck
           s"${error.getKey} ${error.getVersion} ${error.getErrorCode} ${error.getMessage}"
         }).mkString("\n"), null)
       }
+    }
+  }
+
+  /**
+   * Internal method for downloading from S3. Very careful to make sure our streams get closed in the case of any error.
+   */
+  @Loggable(value = Loggable.DEBUG, limit = 12, unit = TimeUnit.HOURS, prepend = true)
+  protected def download(obj: S3Object, file: File) {
+    val dataInputStream = obj.getDataInputStream
+    val input = new BufferedInputStream(dataInputStream)
+    try {
+      val output = new BufferedOutputStream(new FileOutputStream(file))
+      try {
+        IOUtils.copy(input, output)
+        input.close()
+        output.close()
+      } finally {
+        IOUtils.closeQuietly(output)
+      }
+    } finally {
+      IOUtils.closeQuietly(input)
     }
   }
 
