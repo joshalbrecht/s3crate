@@ -1,17 +1,18 @@
 package com.codexica.s3crate.filetree.history
 
-import com.codexica.common.SafeInputStream
-import org.xerial.snappy.{SnappyOutputStream, Snappy, SnappyInputStream}
-import java.io.{ByteArrayOutputStream, InputStream}
-import org.apache.commons.io.IOUtils
 import com.Ostermiller.util.CircularByteBuffer
+import com.codexica.common.SafeInputStream
+import com.google.inject.Inject
 import com.jcabi.aspects.Loggable
+import java.io.{ByteArrayOutputStream, InputStream}
 import java.util.concurrent.TimeUnit
+import org.apache.commons.io.IOUtils
+import org.xerial.snappy.{SnappyOutputStream, SnappyInputStream}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class Compressor {
+class Compressor @Inject()() {
 
   //TODO: both of these should be read from the configuration
 
@@ -36,16 +37,19 @@ class Compressor {
       //have to write to a circular buffer with a snappy output stream, and then read from it...
       (SnappyCompression(), new SafeInputStream(new InputStream {
         val b = new Array[Byte](1)
+
         def read(): Int = {
           read(b, 0, 1)
           b(0)
         }
+
         private val cbb = new CircularByteBuffer(CircularByteBuffer.INFINITE_SIZE)
         val circInput = cbb.getInputStream
         val circOutput = cbb.getOutputStream
         val snappyOut = new SnappyOutputStream(circOutput)
         val readBuffer = new Array[Byte](8 * 1024)
         var wasClosed = false
+
         override def read(b: Array[Byte], off: Int, len: Int): Int = {
           val numBytesToRead = len - off
           var closed = false
@@ -89,7 +93,7 @@ class Compressor {
   def decompress(input: SafeInputStream, method: CompressionMethod): SafeInputStream = {
     method match {
       case SnappyCompression() => new SafeInputStream(new SnappyInputStream(input), s"unzipped($input)")
-      case NoCompression() => input
+      case NoCompression()     => input
     }
   }
 

@@ -1,21 +1,28 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import com.codexica.s3crate.filetree.history.snapshotstore._
-import scala.concurrent.{ExecutionContext, Future}
-import java.io._
-import com.codexica.s3crate.filetree.{WritableFileTree, FilePath}
-import org.apache.commons.io.FileUtils
-import java.util.UUID
-import com.codexica.s3crate.filetree.history.{AsymmetricEncryptor, Compressor, SymmetricEncryptor, FilePathState}
-import play.api.libs.json.Json
-import scala.util.control.NonFatal
 import com.codexica.common.{SafeInputStream, FutureUtils}
+import com.codexica.s3crate.filetree.history.{AsymmetricEncryptor, Compressor, SymmetricEncryptor, FilePathState}
+import com.codexica.s3crate.filetree.{WritableFileTree, FilePath}
+import com.google.inject.Inject
+import java.util.UUID
+import org.apache.commons.io.FileUtils
+import play.api.libs.json.Json
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
+import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, FileSnapshot, RemoteFileSystemTypes, WritableSnapshotStore, ReadableSnapshotStore}
+import java.io.{File, FileOutputStream, BufferedOutputStream}
+import com.codexica.encryption.{Cryptographer, KeyPairReference}
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: ExecutionContext, compressor: Compressor,
-                        metaEncryptor: AsymmetricEncryptor, blobEncryptor: SymmetricEncryptor)
+protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
+                                              remotePrefix: String,
+                                              ec: ExecutionContext,
+                                              compressor: Compressor,
+                                              metaKeyIdOpt: Option[KeyPairReference],
+                                              blobKeyIdOpt: Option[KeyPairReference],
+                                              crypto: Cryptographer)
   extends ReadableSnapshotStore with WritableSnapshotStore {
 
   implicit val context = ec
@@ -34,14 +41,16 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
   private val metaDir = getPersistentLocalFolder(metaFolder)
   private val uploadDir = getPersistentLocalFolder(blobFolder)
 
+  private val metaEncryptor = new AsymmetricEncryptor(metaKeyIdOpt, crypto)
+  private val blobEncryptor = new SymmetricEncryptor(blobKeyIdOpt, crypto)
+
   /**
    * @return Future will be complete when all of the older files were deleted
    */
-  def clear(): Future[Unit] = Future {
-    uploadDir.listFiles().foreach(file => assert(file.delete()))
-  }
+  def clear(): Future[Unit] = Future {uploadDir.listFiles().foreach(file => assert(file.delete()))}
 
   override def list(): Future[Set[RemoteFileSystemTypes.SnapshotId]] = {
+
     //generate a bunch of prefixes, and list each of those in parallel. The reason for this is that it makes listing
     //large buckets parallel, and thus much faster.
     val prefixes = UUID_CHARACTER_SET.flatMap(char1 => {
@@ -51,12 +60,13 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
     //load all data
     Future.sequence(prefixes.map(prefix => {
       Future {
-        s3.listObjects(metaFolder + prefix)
+        s3.listObjects(metaFolder + "/" + prefix)
       }.flatMap(objects => {
-        FutureUtils.sequenceOrBailOut(objects.map(obj => Future {
-          val id: RemoteFileSystemTypes.SnapshotId = UUID.fromString(obj.getKey.split("/").last)
-          id
-        }))
+        FutureUtils.sequenceOrBailOut(objects.map(obj =>
+          Future {
+            val id: RemoteFileSystemTypes.SnapshotId = UUID.fromString(obj.getKey.split("/").last)
+            id
+          }))
       })
     }).toSet).map(_.flatten)
   }
@@ -66,6 +76,7 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
    * assume that it was not properly downloaded, delete it, and try again.
    */
   override def read(id: RemoteFileSystemTypes.SnapshotId): Future[FileSnapshot] = Future {
+
     val remotePath = metaFolder + "/" + id.toString
     val file = new File(metaDir, id.toString)
     if (file.exists()) {
@@ -86,7 +97,10 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
     }
   }
 
-  override def saveBlob(path: FilePath, state: FilePathState, inputGenerator: () => SafeInputStream): Future[DataBlob] = Future {
+  override def saveBlob(path: FilePath,
+                        state: FilePathState,
+                        inputGenerator: () => SafeInputStream): Future[DataBlob] = Future {
+
     val (compressionMethod, compressedStream) = compressor.compress(inputGenerator)
     val (encryptionDetails, encryptedInput) = blobEncryptor.encrypt(compressedStream)
     //store blob in a random location, really doesn't matter
@@ -95,7 +109,10 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
     DataBlob(blobLocation, encryptionDetails, compressionMethod)
   }
 
-  override def saveSnapshot(path: FilePath, state: FilePathState, blob: DataBlob, previous: Option[RemoteFileSystemTypes.SnapshotId]): Future[FileSnapshot] = Future {
+  override def saveSnapshot(path: FilePath,
+                            state: FilePathState,
+                            blob: DataBlob,
+                            previous: Option[RemoteFileSystemTypes.SnapshotId]): Future[FileSnapshot] = Future {
 
     //create the remote snapshot meta data
     val remoteSnapshot = FileSnapshot(
@@ -122,7 +139,9 @@ protected[s3] class S3SnapshotStore(s3: S3Interface, remotePrefix: String, ec: E
     remoteSnapshot
   }
 
-  def download(id: RemoteFileSystemTypes.SnapshotId, path: FilePath, fileSystem: WritableFileTree): Future[Unit] = throw new NotImplementedError()
+  def download(id: RemoteFileSystemTypes.SnapshotId,
+               path: FilePath,
+               fileSystem: WritableFileTree): Future[Unit] = throw new NotImplementedError()
 
   private def getPersistentLocalFolder(subpath: String): File = {
     val folder = new File(FileUtils.getUserDirectory, "." + APPLICATION_NAME + "/" + subpath)

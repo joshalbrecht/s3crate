@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class AsymmetricEncryptor(keyIdOpt: Option[KeyPairReference], crypto: Cryptographer) {
+class AsymmetricEncryptor (keyIdOpt: Option[KeyPairReference], crypto: Cryptographer) {
 
   /**
    * @param data Data to encrypt
@@ -25,7 +25,7 @@ class AsymmetricEncryptor(keyIdOpt: Option[KeyPairReference], crypto: Cryptograp
   @Loggable(value = Loggable.DEBUG, limit = 5, unit = TimeUnit.SECONDS, prepend = true)
   def encrypt(data: Array[Byte]): Array[Byte] = {
     keyIdOpt match {
-      case None => data
+      case None        => data
       case Some(keyId) => crypto.publicEncrypt(data, keyId)
     }
   }
@@ -38,7 +38,7 @@ class AsymmetricEncryptor(keyIdOpt: Option[KeyPairReference], crypto: Cryptograp
   @Loggable(value = Loggable.DEBUG, limit = 5, unit = TimeUnit.SECONDS, prepend = true)
   def decrypt(data: Array[Byte]): Array[Byte] = {
     keyIdOpt match {
-      case None => data
+      case None        => data
       case Some(keyId) => crypto.publicDecrypt(data, keyId)
     }
   }

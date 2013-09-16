@@ -1,6 +1,6 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import com.codexica.s3crate.filetree.history.{FilePathState, FileTreeHistory}
+import com.codexica.s3crate.filetree.history.{Compressor, FilePathState, FileTreeHistory}
 import com.codexica.s3crate.filetree.history.snapshotstore.{RemoteFileSystemTypes, FileSnapshot}
 import com.codexica.s3crate.filetree.{ReadableFileTree, FilePath, WritableFileTree}
 import scala.concurrent.{ExecutionContext, Future}
@@ -38,7 +38,7 @@ protected[s3] class S3FileHistory private(store: S3SnapshotStore)(implicit val e
             val linkedSnapshots = snapshotList.map(snapshot => {
               (snapshot.previous, snapshot.id)
             }).toMap
-            //TODO: we'll have to handle this eventually, but it's bad. Means that 2 things were writing at the same time
+            //TODO: have to handle this eventually, but it's bad. Means that 2 things were writing at the same time
             //confirming that there are no cases where there are two identical previous snapshots, would be ambiguous
             assert(snapshotList.size == linkedSnapshots.size)
             var curSnapshotId = linkedSnapshots(None)
@@ -113,7 +113,7 @@ object S3FileHistory {
   def initialize(ec: ExecutionContext, remotePrefix: String, s3: S3Interface): Future[S3FileHistory] = {
     implicit val context = ec
     //TODO:  create the crypto parameters
-    val store = new S3FileHistory(new S3SnapshotStore(s3, remotePrefix, ec, null, null, null))
+    val store = new S3FileHistory(new S3SnapshotStore(s3, remotePrefix, ec, new Compressor(), None, None, null))
     val booted = store.init()
     booted.map(_ => store)
   }
