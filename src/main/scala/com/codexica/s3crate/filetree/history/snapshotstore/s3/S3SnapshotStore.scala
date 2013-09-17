@@ -12,8 +12,12 @@ import org.apache.commons.io.FileUtils
 import org.codehaus.jackson.JsonParseException
 import play.api.libs.json.Json
 import scala.concurrent.{ExecutionContext, Future}
+import com.jcabi.aspects.Loggable
+import java.util.concurrent.TimeUnit
 
 /**
+ * Enables snapshots (and the associated binary content) to be read and written to S3
+ *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
 protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
@@ -47,8 +51,10 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
   /**
    * @return Future will be complete when all of the older files were deleted
    */
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   def clear(): Future[Unit] = Future {uploadDir.listFiles().foreach(file => assert(file.delete()))}
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   override def list(): Future[Set[RemoteFileSystemTypes.SnapshotId]] = {
 
     //generate a bunch of prefixes, and list each of those in parallel. The reason for this is that it makes listing
@@ -82,6 +88,7 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
    * Files are cached locally because they are immutable once written to S3. If we ever fail to deserialize one, we
    * assume that it was not properly downloaded, delete it, and try again.
    */
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   override def read(id: RemoteFileSystemTypes.SnapshotId): Future[FileSnapshot] = Future {
 
     val remotePath = metaFolder + "/" + id.toString
@@ -102,6 +109,7 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
     }
   }
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   override def saveBlob(path: FilePath,
                         state: FilePathState,
                         inputGenerator: () => SafeInputStream): Future[DataBlob] = Future {
@@ -114,6 +122,7 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
     DataBlob(blobLocation, encryptionDetails, compressionMethod)
   }
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   override def saveSnapshot(path: FilePath,
                             state: FilePathState,
                             blob: DataBlob,
@@ -144,6 +153,7 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
     remoteSnapshot
   }
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   def download(id: RemoteFileSystemTypes.SnapshotId,
                path: FilePath,
                fileSystem: WritableFileTree): Future[Unit] = throw new NotImplementedError()

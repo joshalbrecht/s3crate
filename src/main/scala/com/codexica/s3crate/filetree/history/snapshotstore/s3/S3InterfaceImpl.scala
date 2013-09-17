@@ -17,7 +17,6 @@ import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Await, Future}
-import scala.util.{Failure, Success}
 import scala.util.control.NonFatal
 import com.google.common.collect.Lists
 
