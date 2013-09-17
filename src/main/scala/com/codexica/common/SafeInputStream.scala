@@ -1,6 +1,6 @@
 package com.codexica.common
 
-import java.io.{FileInputStream, File, IOException, InputStream}
+import java.io.{BufferedInputStream, FileInputStream, File, IOException, InputStream}
 import scala.util.Try
 import scala.util.control.NonFatal
 import com.jcabi.aspects.Loggable
@@ -16,36 +16,31 @@ class SafeInputStream(stream: InputStream, name: String) extends InputStream {
 
   def wasClosed = closeWasCalled
 
-  def read(): Int = Try(stream.read()).recoverWith(handler).get
+  def read(): Int = Try(stream.read()).recoverWith(SafeInputStream.handler).get
 
-  override def read(b: Array[Byte]): Int = Try(stream.read(b)).recoverWith(handler).get
+  override def read(b: Array[Byte]): Int = Try(stream.read(b)).recoverWith(SafeInputStream.handler).get
 
-  override def read(b: Array[Byte], off: Int, len: Int): Int = Try(stream.read(b, off, len)).recoverWith(handler).get
+  override def read(b: Array[Byte], off: Int, len: Int): Int = Try(stream.read(b, off, len))
+    .recoverWith(SafeInputStream.handler).get
 
-  override def skip(n: Long): Long = Try(stream.skip(n)).recoverWith(handler).get
+  override def skip(n: Long): Long = Try(stream.skip(n)).recoverWith(SafeInputStream.handler).get
 
-  override def available(): Int = Try(stream.available()).recoverWith(handler).get
+  override def available(): Int = Try(stream.available()).recoverWith(SafeInputStream.handler).get
 
   override def close() {
     closeWasCalled = true
-    Try(stream.close()).recoverWith(handler)
+    Try(stream.close()).recoverWith(SafeInputStream.handler)
   }
 
   override def mark(readlimit: Int) {
-    Try(stream.mark(readlimit)).recoverWith(handler)
+    Try(stream.mark(readlimit)).recoverWith(SafeInputStream.handler)
   }
 
   override def reset() {
-    Try(stream.reset()).recoverWith(handler)
+    Try(stream.reset()).recoverWith(SafeInputStream.handler)
   }
 
-  override def markSupported(): Boolean = Try(stream.markSupported()).recoverWith(handler).get
-
-  protected def handler: PartialFunction[Throwable, Nothing] = {
-    case e: IOException => throw new InaccessibleDataError("Failure reading from file tree", e)
-    case e: CodexicaError => throw e
-    case NonFatal(e) => throw new UnexpectedError("Unexpected error while reading from file tree", e)
-  }
+  override def markSupported(): Boolean = Try(stream.markSupported()).recoverWith(SafeInputStream.handler).get
 
   override def toString: String = {
     s"$getClass($name)"
@@ -61,6 +56,12 @@ object SafeInputStream {
    */
   @Loggable(value = Loggable.TRACE, limit = 300, unit = TimeUnit.MILLISECONDS, prepend = true)
   def fromFile(file: File): SafeInputStream = {
-    new SafeInputStream(new FileInputStream(file), file.getAbsolutePath)
+    Try(new SafeInputStream(new BufferedInputStream(new FileInputStream(file)), file.getAbsolutePath))
+    .recoverWith(handler).get
+  }
+
+  def handler: PartialFunction[Throwable, Nothing] = {
+    case e: IOException => throw new InaccessibleDataError("Failure reading from stream", e)
+    case NonFatal(e) => throw new UnexpectedError("Unexpected error while reading from stream", e)
   }
 }

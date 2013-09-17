@@ -2,7 +2,7 @@ package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.s3.model.{AbortMultipartUploadRequest, InitiateMultipartUploadRequest, CompleteMultipartUploadRequest, UploadPartRequest}
-import com.codexica.common.{FutureUtils, InaccessibleDataError, SafeInputStream}
+import com.codexica.common.{SafeOutputStream, FutureUtils, InaccessibleDataError, SafeInputStream}
 import com.google.inject.Inject
 import com.jcabi.aspects.Loggable
 import java.io._
@@ -65,19 +65,18 @@ protected[s3] class S3InterfaceImpl @Inject()(s3: RestS3Service,
 
   @Loggable(value = Loggable.DEBUG, limit = 12, unit = TimeUnit.HOURS, prepend = true)
   override def download(path: String, file: File) {
-    val s3Object = try {
-      s3.getObject(bucket.getName, path)
+    try {
+      val s3Object = s3.getObject(bucket.getName, path)
+      download(s3Object, file)
     } catch {
       case e: S3ServiceException => {
-        val temp = e
-        if (e.getS3ErrorCode == "Could not find object") {
+        if (e.getS3ErrorCode == "NoSuchKey") {
           throw new IllegalArgumentException(s"Could not find $path")
         } else {
           throw new InaccessibleDataError(s"Could not access $path", e)
         }
       }
     }
-    download(s3Object, file)
   }
 
   //Note: this implementation may take a long time. We currently don't care because we only use it for testing...
@@ -102,9 +101,9 @@ protected[s3] class S3InterfaceImpl @Inject()(s3: RestS3Service,
   @Loggable(value = Loggable.DEBUG, limit = 12, unit = TimeUnit.HOURS, prepend = true)
   protected def download(obj: S3Object, file: File) {
     val dataInputStream = obj.getDataInputStream
-    val input = new BufferedInputStream(dataInputStream)
+    val input = new SafeInputStream(dataInputStream, s"reading aws stream from ${obj.getKey}")
     try {
-      val output = new BufferedOutputStream(new FileOutputStream(file))
+      val output = SafeOutputStream.fromFile(file)
       try {
         IOUtils.copy(input, output)
         input.close()
@@ -130,7 +129,9 @@ protected[s3] class S3InterfaceImpl @Inject()(s3: RestS3Service,
     val obj = new S3Object(location)
     obj.setDataInputFile(file)
     obj.setMd5Hash(md5)
-    s3.putObject(bucket, obj)
+    val result = s3.putObject(bucket, obj)
+    assert(result.getETag == ServiceUtils.toHex(md5))
+    result
   }
 
   //TODO: note that you will get exceptions if the first part is less than 5MB...

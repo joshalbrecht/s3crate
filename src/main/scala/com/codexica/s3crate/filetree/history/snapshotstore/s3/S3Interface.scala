@@ -27,6 +27,7 @@ trait S3Interface {
    *                    parts must be uploaded, they will be merged after being uploaded.
    * @param uploadDir where to write the file(s) before uploading
    * @throws InaccessibleDataError if the data could not be read or written for any reason
+   * @throws AssertionError if the checksums don't match
    * @return The object that was created
    */
   def save(data: SafeInputStream, blobLocation: String, uploadDir: File, maxPartSize: Long): S3Object

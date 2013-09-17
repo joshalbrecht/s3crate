@@ -2,7 +2,7 @@ package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
 import com.codexica.common.{InaccessibleDataError, SafeLogSpecification, SafeInputStream}
 import com.google.inject.Guice
-import java.io.{InputStream, File, ByteArrayInputStream}
+import java.io.{IOException, InputStream, File, ByteArrayInputStream}
 import java.lang.IllegalArgumentException
 import java.util.{UUID, Random}
 import org.apache.commons.io.FileUtils
@@ -74,10 +74,8 @@ class S3InterfaceIntegrationSpec extends SafeLogSpecification {
   "uploading data" should {
     "create the correct md5 hash for single-part files" in new Context {
       s3.save(inputStream(), location, workingDir, dataLength * 2)
-      s3.listObjects(location).head.getMd5HashAsBase64 must be equalTo ServiceUtils.toBase64(fullDataHash)
     }
     "create the correct md5 hash for multi-part files" in new Context {
-      //note: will throw an exception if the md5 is not right for the multipart upload
       s3.save(hugeInputStream(), location, workingDir, hugeDataLength - 20324)
     }
     "throw the correct exception and close the stream if the underlying data stream fails" in new Context {
@@ -95,7 +93,7 @@ class S3InterfaceIntegrationSpec extends SafeLogSpecification {
         }, "unsafe input stream")
       }
 
-      var stream = badInputStream(new Exception("fail"))
+      var stream = badInputStream(new IOException("fail"))
       s3.save(stream, location, workingDir, dataLength * 2) must throwAn[InaccessibleDataError]
       stream.wasClosed must be equalTo true
 
@@ -113,10 +111,10 @@ class S3InterfaceIntegrationSpec extends SafeLogSpecification {
       FileUtils.readFileToByteArray(file).toList must be equalTo bytes.toList
     }
     "create an identical file for multi-part files" in new Context {
-      s3.save(inputStream(), location, workingDir, dataLength / 2)
+      s3.save(hugeInputStream(), location, workingDir, hugeDataLength - 23495)
       val file = new File(workingDir, UUID.randomUUID().toString)
       s3.download(location, file)
-      FileUtils.readFileToByteArray(file).toList must be equalTo bytes.toList
+      FileUtils.readFileToByteArray(file).toList must be equalTo hugeBytes.toList
     }
     "throw a proper exception if the local file is inaccessible" in new Context {
       s3.save(inputStream(), location, workingDir, dataLength * 2)

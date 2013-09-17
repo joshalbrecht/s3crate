@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 import org.jets3t.service.utils.ServiceUtils
 import com.jcabi.aspects.Loggable
 import java.util.concurrent.TimeUnit
+import com.codexica.common.SafeOutputStream
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -36,7 +37,7 @@ protected[s3] object S3BlobWriter {
 
     var finishedWritingData = false
     var currentFile = makeUploadDirectoryFile()
-    var currentOutputStream = new BufferedOutputStream(new FileOutputStream(currentFile))
+    var currentOutputStream = SafeOutputStream.fromFile(currentFile)
     var currentMd5Accumulator: MessageDigest = MessageDigest.getInstance("MD5")
     //TODO: feels kind of silly that we hash everything twice for the first file part (eg, most files), but there's no
     //convenient way around it that I see. Perhaps we could clone it before calling digest...
@@ -70,7 +71,7 @@ protected[s3] object S3BlobWriter {
           logger.debug("Wrote {} bytes to {}, resulting in digest of {}", numBytesWritten.toString,
             currentFile.getAbsolutePath, ServiceUtils.toBase64(digest))
           currentFile = makeUploadDirectoryFile()
-          currentOutputStream = new BufferedOutputStream(new FileOutputStream(currentFile))
+          currentOutputStream = SafeOutputStream.fromFile(currentFile)
           currentMd5Accumulator = MessageDigest.getInstance("MD5")
           numBytesWritten = 0L
 
