@@ -1,27 +1,37 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import org.jets3t.service.impl.rest.httpclient.RestS3Service
-import org.jets3t.service.model.{S3Object, S3Bucket}
+import com.amazonaws.services.s3.AmazonS3Client
+import com.amazonaws.services.s3.model.{AbortMultipartUploadRequest, InitiateMultipartUploadRequest, CompleteMultipartUploadRequest, UploadPartRequest}
+import com.codexica.common.{FutureUtils, InaccessibleDataError, SafeInputStream}
+import com.google.inject.Inject
+import com.jcabi.aspects.Loggable
 import java.io._
-import org.apache.commons.io.{IOUtils, FileUtils}
+import java.util.concurrent.TimeUnit
+import org.apache.commons.io.IOUtils
+import org.jets3t.service.S3ServiceException
+import org.jets3t.service.impl.rest.httpclient.RestS3Service
+import org.jets3t.service.model.container.ObjectKeyAndVersion
+import org.jets3t.service.model.{S3Object, S3Bucket}
 import org.jets3t.service.utils.ServiceUtils
 import org.slf4j.LoggerFactory
-import com.jcabi.aspects.Loggable
-import java.util.concurrent.TimeUnit
-import scala.concurrent.Future
-import com.google.inject.Inject
-import org.jets3t.service.model.container.ObjectKeyAndVersion
 import scala.collection.JavaConversions._
-import com.codexica.common.{InaccessibleDataError, SafeInputStream}
-import org.jets3t.service.S3ServiceException
+import scala.concurrent.duration.Duration
+import scala.concurrent.{ExecutionContext, Await, Future}
+import scala.util.{Failure, Success}
 import scala.util.control.NonFatal
+import com.google.common.collect.Lists
 
 /**
  * A wrapper around the JetS3t interface to S3 for simplicity and testing
  *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-protected[s3] class S3InterfaceImpl @Inject() (s3: RestS3Service, bucket: S3Bucket) extends S3Interface {
+protected[s3] class S3InterfaceImpl @Inject()(s3: RestS3Service,
+                                              bucket: S3Bucket,
+                                              directS3: AmazonS3Client,
+                                              @S3ExecutionContext() ec: ExecutionContext) extends S3Interface {
+
+  implicit val context = ec
   private val logger = LoggerFactory.getLogger(getClass)
 
   @Loggable(value = Loggable.DEBUG, limit = 1, unit = TimeUnit.MINUTES, prepend = true)
@@ -123,6 +133,7 @@ protected[s3] class S3InterfaceImpl @Inject() (s3: RestS3Service, bucket: S3Buck
     s3.putObject(bucket, obj)
   }
 
+  //TODO: note that you will get exceptions if the first part is less than 5MB...
   /**
    * Given a set of (file, md5 hash) pairs, upload all of them to S3 (in parallel?) and verify that each upload has
    * the correct MD5 hash.
@@ -136,12 +147,58 @@ protected[s3] class S3InterfaceImpl @Inject() (s3: RestS3Service, bucket: S3Buck
    * @return The uploaded object
    */
   @Loggable(value = Loggable.DEBUG, limit = 12, unit = TimeUnit.HOURS, prepend = true)
-  protected def multipartUpload(fileHashes: List[(File, Array[Byte])], location: String, completeMD5: Array[Byte]): S3Object = {
-    logger.info("Uploading {} files to {} (resulting hash should be {})", fileHashes.size.toString, location, ServiceUtils.toBase64(completeMD5))
-    //Multipart
-    //UploadCallable.uploadInParts  //<- see for real implementation, using md5
-    //weirdness: when uploading in multiple parts, if LESS than 5GB, must copy onto yourself, which regenerates the ETAG to be the MD5 hash, THEN we can verify that the upload worked correctly.
-    //if greater than 5GB, can't do anything right now besides hope that the resulting concatenation didn't introduce errors on the AWS side (can only verify hashes for each part)
-    throw new NotImplementedError()
+  protected def multipartUpload(fileHashes: List[(File, Array[Byte])],
+                                location: String,
+                                completeMD5: Array[Byte]): S3Object = {
+    logger.info("Uploading {} files to {} (resulting hash should be {})",
+      fileHashes.size.toString, location, ServiceUtils.toBase64(completeMD5))
+
+    val bucketName = bucket.getName
+    //initialize
+    val initRequest = new InitiateMultipartUploadRequest(bucketName, location)
+    val initResponse = directS3.initiateMultipartUpload(initRequest)
+
+    //make a list of futures for when each is done
+    val MAX_PART_RETRIES = 3
+    val partFutures = fileHashes.zipWithIndex.map({ case ((file, md5), i) => Future {
+      val uploadRequest = new UploadPartRequest()
+        .withBucketName(bucketName)
+        .withKey(location)
+        .withUploadId(initResponse.getUploadId)
+        .withPartNumber(i+1)
+        .withMD5Digest(ServiceUtils.toBase64(md5))
+        .withFileOffset(0)
+        .withFile(file)
+        .withPartSize(file.length())
+      FutureUtils.retry(MAX_PART_RETRIES)({
+        directS3.uploadPart(uploadRequest).getPartETag
+      }).get
+    }
+    })
+
+    val partETags = try {
+      Await.result(FutureUtils.sequenceOrBailOut(partFutures), Duration.Inf)
+    } catch {
+      case NonFatal(t) => {
+        directS3.abortMultipartUpload(new AbortMultipartUploadRequest(bucketName, location, initResponse.getUploadId))
+        throw t
+      }
+    }
+
+    //note: that's stupid. Calling completeMultipartUpload sorts the list that you pass in. yay side effects
+    import collection.JavaConverters._
+    val compRequest = new CompleteMultipartUploadRequest(bucketName, location, initResponse.getUploadId, Lists.newArrayList(partETags.asJava))
+    directS3.completeMultipartUpload(compRequest)
+    //some weirdness--when uploading multiple parts, the resulting ETag should be the MD5 of the concatenated MD5's of
+    //the parts, - the number of parts:
+    //see here: https://forums.aws.amazon.com/thread.jspa?threadID=126111
+    val s3Object = s3.getObject(bucketName, location)
+    s3Object.getDataInputStream.close()
+    val etag = s3Object.getETag
+    val numParts = fileHashes.size
+    assert(etag.split("-").last == numParts.toString)
+    val expectedHash = ServiceUtils.toHex(ServiceUtils.computeMD5Hash(fileHashes.flatMap(_._2).toArray))
+    assert(etag.split("-").head == expectedHash)
+    s3Object
   }
 }

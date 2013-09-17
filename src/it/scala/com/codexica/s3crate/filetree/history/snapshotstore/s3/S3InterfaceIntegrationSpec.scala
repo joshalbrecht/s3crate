@@ -10,6 +10,8 @@ import org.jets3t.service.utils.ServiceUtils
 import org.joda.time.{DateTimeZone, DateTime}
 import org.slf4j.LoggerFactory
 import org.specs2.mutable.After
+import com.tzavellas.sse.guice.ScalaModule
+import scala.concurrent.ExecutionContext
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -19,7 +21,11 @@ class S3InterfaceIntegrationSpec extends SafeLogSpecification {
   trait Context extends After with BaseContext {
     //load the special configuration with login details
     System.setProperty("config.resource", "/integration.conf")
-    val injector = Guice.createInjector(new S3Module())
+    val injector = Guice.createInjector(new S3Module(), new ScalaModule {
+      def configure() {
+        bind[ExecutionContext].annotatedWith[S3ExecutionContext].toInstance(ExecutionContext.Implicits.global)
+      }
+    })
     val s3 = injector.getInstance(classOf[S3Interface])
 
     //make a new prefix under which you should work
@@ -37,11 +43,19 @@ class S3InterfaceIntegrationSpec extends SafeLogSpecification {
     }
 
     //test data:
+    val random = new Random(98735)
     val dataLength = 78342
     val bytes = new Array[Byte](dataLength)
-    new Random(98735).nextBytes(bytes)
+    random.nextBytes(bytes)
     val fullDataHash = ServiceUtils.computeMD5Hash(bytes)
     val inputStream = () => {new SafeInputStream(new ByteArrayInputStream(bytes), "(local test data)")}
+
+    val hugeDataLength = 6 * 1024 * 1024
+    val hugeBytes = new Array[Byte](hugeDataLength)
+    random.nextBytes(bytes)
+    val fullHugeDataHash = ServiceUtils.computeMD5Hash(hugeBytes)
+    val hugeInputStream = () => {new SafeInputStream(new ByteArrayInputStream(hugeBytes), "(big local test data)")}
+
     val location = prefix + UUID.randomUUID().toString
   }
 
@@ -63,8 +77,8 @@ class S3InterfaceIntegrationSpec extends SafeLogSpecification {
       s3.listObjects(location).head.getMd5HashAsBase64 must be equalTo ServiceUtils.toBase64(fullDataHash)
     }
     "create the correct md5 hash for multi-part files" in new Context {
-      s3.save(inputStream(), location, workingDir, dataLength / 2)
-      s3.listObjects(location).head.getMd5HashAsBase64 must be equalTo ServiceUtils.toBase64(fullDataHash)
+      //note: will throw an exception if the md5 is not right for the multipart upload
+      s3.save(hugeInputStream(), location, workingDir, hugeDataLength - 20324)
     }
     "throw the correct exception and close the stream if the underlying data stream fails" in new Context {
       def badInputStream(failure: Throwable) = {

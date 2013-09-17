@@ -6,6 +6,8 @@ import org.jets3t.service.impl.rest.httpclient.RestS3Service
 import com.typesafe.config.{Config, ConfigFactory}
 import org.jets3t.service.security.AWSCredentials
 import org.jets3t.service.model.S3Bucket
+import com.amazonaws.services.s3.AmazonS3Client
+import com.amazonaws.auth.BasicAWSCredentials
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -17,6 +19,15 @@ class S3Module extends ScalaModule {
   def configure() {
     config = ConfigFactory.load().getConfig("aws")
     bind[S3Interface].to[S3InterfaceImpl].in(Scopes.SINGLETON)
+  }
+
+  @Provides
+  def providesDirectAmazonS3Client(): AmazonS3Client = {
+    val accessKey = config.getString("access_key")
+    val secretKey = config.getString("secret_key")
+    val client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey))
+    client.setEndpoint(s"s3-${S3Bucket.LOCATION_US_WEST}.amazonaws.com")
+    client
   }
 
   @Provides

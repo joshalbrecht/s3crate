@@ -19,7 +19,7 @@ import scala.concurrent.{ExecutionContext, Future}
 protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
                                               remotePrefix: String,
                                               ec: ExecutionContext,
-                                              compressor: Compressor,
+                                              @S3ExecutionContext() compressor: Compressor,
                                               metaKeyIdOpt: Option[KeyPairReference],
                                               blobKeyIdOpt: Option[KeyPairReference],
                                               crypto: Cryptographer)
