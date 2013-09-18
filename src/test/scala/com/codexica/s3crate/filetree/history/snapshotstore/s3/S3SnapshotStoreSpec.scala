@@ -1,18 +1,20 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import com.codexica.common.{InaccessibleDataError, SafeLogSpecification}
-import com.codexica.s3crate.filetree.FilePath
+import com.codexica.common.{SafeInputStream, InaccessibleDataError, SafeLogSpecification}
+import com.codexica.s3crate.filetree.{FileType, FileMetaData, FilePath}
 import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, FileSnapshot}
-import com.codexica.s3crate.filetree.history.{FilePathState, NoCompression, Compressor}
-import java.io.File
+import com.codexica.s3crate.filetree.history.{SnappyCompression, FilePathState, NoCompression, Compressor}
+import java.io.{ByteArrayInputStream, File}
 import java.util.UUID
-import org.apache.commons.io.FileUtils
+import org.apache.commons.io.{IOUtils, FileUtils}
 import org.jets3t.service.model.S3Object
 import org.scalamock.specs2.MockFactory
-import org.scalamock.{FunctionAdapter2, FunctionAdapter1}
+import org.scalamock.{FunctionAdapter4, FunctionAdapter2, FunctionAdapter1}
 import play.api.libs.json.Json
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
+import org.joda.time.DateTime
+import java.nio.file.attribute.PosixFilePermission
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -103,6 +105,43 @@ class S3SnapshotStoreSpec extends SafeLogSpecification with MockFactory {
         true
       })).throwing(new IllegalArgumentException("bad path"))
       Await.result(snapshotStore.read(snapshot.id), Duration.Inf) must throwAn[IllegalArgumentException]
+    }
+  }
+
+  "saving binary data" should {
+    "work correctly" in new Context {
+      val originalData = new SafeInputStream(new ByteArrayInputStream("aaaa".getBytes), "temp")
+      val inputGenerator = () => {
+        originalData
+      }
+      var savedLocation: String = null
+      (s3.save _).expects(new FunctionAdapter4((data: SafeInputStream, location: String, dir: File, maxSize: Long) => {
+        data must be equalTo originalData
+        savedLocation = location
+        true
+      }))
+      val resultingBlob = Await.result(snapshotStore.saveBlob(inputGenerator), Duration.Inf)
+      resultingBlob must be equalTo DataBlob(savedLocation, None, NoCompression())
+    }
+  }
+
+  "saving a file snapshot" should  {
+    "work correctly" in new Context {
+      val filePath = FilePath("some/path")
+      val permissions = Set(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE)
+      val fileState = FilePathState(filePath, true, Option(FileMetaData(FileType(), 32958L, new DateTime(), "owner", "group", permissions, None, false)))
+      val blob = DataBlob("some/location/to/blob", None, SnappyCompression())
+      val prev = Option(UUID.randomUUID())
+      var savedData: Array[Byte] = null
+      (s3.save _).expects(new FunctionAdapter4((data: SafeInputStream, location: String, dir: File, maxSize: Long) => {
+        savedData = IOUtils.toByteArray(data)
+        true
+      }))
+      val resultingSnapshot = Await.result(snapshotStore.saveSnapshot(filePath, fileState, blob, prev), Duration.Inf)
+      val expectedSnapshot = FileSnapshot(resultingSnapshot.id, blob, fileState, prev)
+      resultingSnapshot must be equalTo expectedSnapshot
+      val jsonBytes = Json.stringify(Json.toJson(expectedSnapshot)).getBytes(snapshotStore.TEXT_ENCODING)
+      jsonBytes.toList must be equalTo savedData.toList
     }
   }
 

@@ -72,7 +72,9 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
         //f3978ygdf/meta
         //instead, because each of those will go to different shards in S3, instead of all going to the same one.
         //we could probably work around this by making the meta prefix super short, like "m", but still...
-        //TODO:  also would be worth measuring the performance difference of the two
+        //TODO:  also would be worth measuring the performance difference of the two.
+        //Actually, none of this will save us anyway. Probably need to consolidate current versions into snapshots
+        //of the entire tree and/or group many separate files into lists of snapshots
         s3.listObjects(metaFolder + "/" + prefix)
       }.flatMap(objects => {
         FutureUtils.sequenceOrBailOut(objects.map(obj =>
@@ -110,9 +112,7 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
   }
 
   @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
-  override def saveBlob(path: FilePath,
-                        state: FilePathState,
-                        inputGenerator: () => SafeInputStream): Future[DataBlob] = Future {
+  override def saveBlob(inputGenerator: () => SafeInputStream): Future[DataBlob] = Future {
 
     val (compressionMethod, compressedStream) = compressor.compress(inputGenerator)
     val (encryptionDetails, encryptedInput) = blobEncryptor.encrypt(compressedStream)
@@ -165,7 +165,7 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
   }
 
   private def getMetaLocation(snapshot: FileSnapshot): String = {
-    throw new NotImplementedError()
+    metaFolder + "/" + snapshot.id.toString
   }
 
   private def readMetaFile(file: File): FileSnapshot = {
@@ -174,6 +174,6 @@ protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
   }
 
   private def randomBlobLocation(): String = {
-    throw new NotImplementedError()
+    blobFolder + "/" + UUID.randomUUID()
   }
 }

@@ -38,8 +38,8 @@ protected[s3] class S3FileHistory private(store: S3SnapshotStore)(implicit val e
             val linkedSnapshots = snapshotList.map(snapshot => {
               (snapshot.previous, snapshot.id)
             }).toMap
-            //TODO: have to handle this eventually, but it's bad. Means that 2 things were writing at the same time
-            //confirming that there are no cases where there are two identical previous snapshots, would be ambiguous
+            //TODO: have to handle this eventually, but it's bad. Means that 2 things were writing at the same time. Currently thinking that the easiest way to handle this is just look at the Amazon metadata--whichever file was created earlier, use that one (in case of ties, use alphabetically first). That way things are deterministic
+            //confirming that there are no cases where there are two identical previous snapshots, since that would mean that the actual correct lineage would be ambiguous
             assert(snapshotList.size == linkedSnapshots.size)
             var curSnapshotId = linkedSnapshots(None)
             var iterationNum = 0
@@ -70,7 +70,7 @@ protected[s3] class S3FileHistory private(store: S3SnapshotStore)(implicit val e
 
   def update(path: FilePath, fileTree: ReadableFileTree): Future[FileSnapshot] = {
     fileTree.metadata(path).flatMap(pathState => {
-      store.saveBlob(path, pathState, () => {
+      store.saveBlob(() => {
         fileTree.read(path)
       }).flatMap(blob => {
         //get previous version

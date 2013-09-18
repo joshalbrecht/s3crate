@@ -57,11 +57,10 @@ class SnapshotStoreSizeExperiment extends SafeLogSpecification {
       val finalLength = Snappy.compress(snapshotData).size
       val x = 4
       //new ideas to reduce metadata size down to something more reasonable without sacrificing encryption:
-      // - stop storing the keys. Just derive them from the UUID and the private key. Then we don't need two keys either.
-      // - stop storing the UUIDs in the object as it is serialized--that's just the name of the file, no need to duplicate information
+      // - stop storing the keys. Just derive them from the UUID and the private key. Then we don't need two keys either. See PBKDF2WithHmacSHA1 and others
+      // - stop storing the UUIDs in the object as it is serialized--that's just the name of the file, no need to duplicate information. Except that we may need to do this if we need to consolidate information to have fewer files, so...
       // - write in a more efficient format and be careful about what we store. Maybe make a json <-> thrift converter someday
       //     maybe even best to make the in-memory version the thrift one too, probably much smaller
-      // - can probably fit the whole thing into an AES256 chunk
       // - eventually can make consolidated snapshot files, lists of snapshots that happened during a certain period, to consolidate the number of files in S3
     }
   }
