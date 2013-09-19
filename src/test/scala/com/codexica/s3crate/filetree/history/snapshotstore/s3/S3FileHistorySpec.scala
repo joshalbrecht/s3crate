@@ -10,6 +10,8 @@ import com.codexica.s3crate.filetree.history.snapshotstore.{DataBlob, FileSnapsh
 import java.util.UUID
 import com.codexica.s3crate.filetree.FilePath
 
+//See here for docs about using mockito: https://code.google.com/p/specs/wiki/UsingMockito#Using_Mockito_with_ScalaTest
+
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
@@ -41,7 +43,7 @@ class S3FileHistorySpec extends SafeLogSpecification {
   "reading metadata" should {
     "return the correct snapshot data" in new Context {
       fileHistory.flatMap(history => {
-        //history.metadata()
+        history.metadata(FilePath("local/path1"))
       })
       Await.result(fileHistory, Duration.Inf)
     }
