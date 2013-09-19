@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 import org.specs2.mutable.After
 import com.tzavellas.sse.guice.ScalaModule
 import scala.concurrent.ExecutionContext
+import com.codexica.s3crate.ActorModule
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -19,20 +20,16 @@ import scala.concurrent.ExecutionContext
 class S3InterfaceIntegrationSpec extends SafeLogSpecification {
 
   trait Context extends After with BaseContext {
-    //load the special configuration with login details
-    System.setProperty("config.resource", "/integration.conf")
-    val injector = Guice.createInjector(new S3Module(), new ScalaModule {
-      def configure() {
-        bind[ExecutionContext].annotatedWith[S3ExecutionContext].toInstance(ExecutionContext.Implicits.global)
-      }
-    })
-    val s3 = injector.getInstance(classOf[S3Interface])
-
     //make a new prefix under which you should work
     val now = new DateTime(DateTimeZone.UTC)
     val prefix = s"tests/integration/$now/"
     val workingDir = new File(FileUtils.getTempDirectory, UUID.randomUUID().toString)
     FileUtils.forceMkdir(workingDir)
+
+    //load the special configuration with login details
+    System.setProperty("config.resource", "/integration.conf")
+    val injector = Guice.createInjector(new S3Module(prefix), new ActorModule())
+    val s3 = injector.getInstance(classOf[S3Interface])
 
     //make sure we delete everything when the tests are done
     def after = {

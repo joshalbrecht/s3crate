@@ -9,9 +9,9 @@ import static java.lang.annotation.ElementType.FIELD;
 import static java.lang.annotation.ElementType.METHOD;
 
 /**
- * Distinguish which execution context should be used for S3 connections
+ * Distinguish injection of common types for S3
  *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
 @BindingAnnotation @Target({ FIELD, PARAMETER, METHOD }) @Retention(RUNTIME)
-public @interface S3ExecutionContext {}
+public @interface S3 {}

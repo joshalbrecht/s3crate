@@ -28,7 +28,7 @@ import com.google.common.collect.Lists
 protected[s3] class S3InterfaceImpl @Inject()(s3: RestS3Service,
                                               bucket: S3Bucket,
                                               directS3: AmazonS3Client,
-                                              @S3ExecutionContext() ec: ExecutionContext) extends S3Interface {
+                                              @S3() ec: ExecutionContext) extends S3Interface {
 
   implicit val context = ec
   private val logger = LoggerFactory.getLogger(getClass)

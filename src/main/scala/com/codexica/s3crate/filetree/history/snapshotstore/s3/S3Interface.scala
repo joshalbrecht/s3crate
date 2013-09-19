@@ -9,7 +9,7 @@ import com.codexica.common.SafeInputStream
  *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-trait S3Interface {
+protected[s3] trait S3Interface {
 
   /**
    * @param prefix the path that must be a prefix of each object returned

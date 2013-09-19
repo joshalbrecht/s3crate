@@ -66,6 +66,8 @@ libraryDependencies += "org.specs2" %% "specs2" % "1.13" % "test"
 
 libraryDependencies += "junit" % "junit" % "4.8" % "test"
 
+libraryDependencies += "org.mockito" % "mockito-all" % "1.9.5"
+
 libraryDependencies += "org.scalamock" %% "scalamock-specs2-support" % "3.0.1" % "test"
 
 libraryDependencies += "org.aspectj" % "aspectjweaver" % "1.7.2"

@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 protected[s3] class S3SnapshotStore @Inject()(s3: S3Interface,
                                               remotePrefix: String,
                                               ec: ExecutionContext,
-                                              @S3ExecutionContext() compressor: Compressor,
+                                              @S3() compressor: Compressor,
                                               metaKeyIdOpt: Option[KeyPairReference],
                                               blobKeyIdOpt: Option[KeyPairReference],
                                               crypto: Cryptographer)

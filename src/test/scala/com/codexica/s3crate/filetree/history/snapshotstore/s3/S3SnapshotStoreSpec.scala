@@ -23,9 +23,9 @@ class S3SnapshotStoreSpec extends SafeLogSpecification with MockFactory {
 
   trait Context extends BaseContext {
     val s3 = mock[S3Interface]
-    val ev = ExecutionContext.Implicits.global
+    val context = ExecutionContext.Implicits.global
     val remotePath = "some/path"
-    val snapshotStore = new S3SnapshotStore(s3, remotePath, ev, new Compressor(), None, None, null)
+    val snapshotStore = new S3SnapshotStore(s3, remotePath, context, new Compressor(), None, None, null)
     val snapshot = FileSnapshot(UUID.randomUUID(),
       DataBlob("location", None, NoCompression()),
       FilePathState(FilePath("somewhere"), false, None),

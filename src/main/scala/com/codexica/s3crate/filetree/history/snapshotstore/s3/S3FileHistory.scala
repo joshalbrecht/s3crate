@@ -100,8 +100,7 @@ protected[s3] class S3FileHistory private(store: S3SnapshotStore)(implicit val e
   }
 }
 
-//TODO: make this protected again
-object S3FileHistory {
+protected[s3] object S3FileHistory {
 
   /**
    * This is the only way to create an S3FileHistory because it takes forever to boot up, so we return a future
@@ -110,11 +109,10 @@ object S3FileHistory {
    * @param ec The context in which futures should be executed
    * @return The fully initialized file history backed by S3
    */
-  def initialize(ec: ExecutionContext, remotePrefix: String, s3: S3Interface): Future[S3FileHistory] = {
+  def initialize(store: S3SnapshotStore, ec: ExecutionContext): Future[S3FileHistory] = {
     implicit val context = ec
-    //TODO:  create the crypto parameters
-    val store = new S3FileHistory(new S3SnapshotStore(s3, remotePrefix, ec, new Compressor(), None, None, null))
-    val booted = store.init()
-    booted.map(_ => store)
+    val history = new S3FileHistory(store)
+    val booted = history.init()
+    booted.map(_ => history)
   }
 }
