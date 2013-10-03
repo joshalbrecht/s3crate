@@ -4,8 +4,7 @@ import scala.concurrent.{Future, Await}
 import scala.util.{Failure, Success}
 import com.google.common.base.Throwables
 import akka.actor.{ActorSystem, Props}
-import com.codexica.s3crate.filetree.history.synchronization.InitializationMessage
-import com.codexica.s3crate.filetree.history.synchronization.actors.Synchronizer
+import com.codexica.s3crate.filetree.history.synchronization.{Historian}
 import com.codexica.s3crate.filetree.history.snapshotstore.s3.{S3, S3Interface, S3Module, S3FileHistory}
 import com.codexica.s3crate.filetree.local.LinuxFileTree
 import java.io.File
@@ -36,30 +35,21 @@ object S3Crate {
 
     //TODO:  maybe make this a default context or something? Or maybe use it below?
     val cpuOperations = actorSystem.dispatchers.lookup("contexts.cpu-operations")
-
     val fileOperations = actorSystem.dispatchers.lookup("contexts.filesystem-operations")
     val fileTree = new LinuxFileTree(baseFolder, fileOperations)
     implicit val ec = actorSystem.dispatchers.defaultGlobalDispatcher
-    val booted = s3InitializedFuture.map(history => {
+    s3InitializedFuture.map(history => {
       direction match {
         case Upload() => {
-          val synchronizer = actorSystem.actorOf(Props.apply({new Synchronizer(fileTree.listen(), fileTree, history)}), "Synchronizer")
-          synchronizer ! InitializationMessage()
+          val historian = new Historian(fileTree, history, ec)
+          while (true) {
+            println(historian.status)
+            Thread.sleep(5 * 1000)
+          }
         }
         case Download() => throw new NotImplementedError()
       }
     })
-    Await.ready(booted, Duration.Inf)
-    booted.value.get match {
-      case Success(results) => {
-        //TODO:  figure out how to shutdown in an orderly way
-        actorSystem.awaitTermination()
-      }
-      case Failure(t) => {
-        Throwables.propagate(t)
-      }
-    }
-    val x = 4
   }
 
   def main(args: Array[String]) {

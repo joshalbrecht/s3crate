@@ -48,7 +48,7 @@ libraryDependencies += "com.google.guava" % "guava" % "14.0.1"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2-M1"
 
-libraryDependencies += "com.typesafe.akka" %% "akka-actor-tests" % "2.2-M1"
+libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % "2.2-M1"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-slf4j" % "2.2-M1"
 

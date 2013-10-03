@@ -8,15 +8,17 @@ package com.codexica.s3crate.filetree
  * of the file (oldest should be synchronized first
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-class PathGenerator(allPaths: Set[FilePathEvent], files: ListenableFileTree) {
+class PathGenerator(allPaths: Set[FilePathEvent],
+                    files: ListenableFileTree,
+                    listener: FileTreeListener) {
 
-  private val iterator = allPaths.iterator
-
-  def hasNext: Boolean = {
-    iterator.hasNext
+  def start() {
+    allPaths.foreach(event => {
+      listener.onNewFilePathEvent(event)
+    })
   }
 
-  def next(): FilePathEvent = {
-    iterator.next()
+  def stop() {
+
   }
 }

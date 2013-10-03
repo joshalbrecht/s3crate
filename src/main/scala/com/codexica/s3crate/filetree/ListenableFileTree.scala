@@ -1,10 +1,15 @@
 package com.codexica.s3crate.filetree
 
 /**
- * Simply generates a set of paths that should be inspected.
+ * Listen to all events from a FileTree.
  *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
 trait ListenableFileTree {
-  def listen(): PathGenerator
+
+  /**
+   * @param listener The object to notify of new events
+   * @return The generator that will cause each of those events
+   */
+  def listen(listener: FileTreeListener): PathGenerator
 }

@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit
  *
  * @author Josh Albrecht (joshalbrecht@gmail.com)
  */
-abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionContext) extends ListenableFileTree with ReadableFileTree with WritableFileTree {
+abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionContext) extends FileTree {
 
   /**
    * @param file For this file
@@ -75,12 +75,12 @@ abstract class LocalFileTree(val baseFolder: File, implicit val ec: ExecutionCon
 
   //TODO: eventually use the fancier "file watcher" mechanism
   @Loggable(value = Loggable.TRACE, limit = 1, unit = TimeUnit.MINUTES, prepend = true)
-  override def listen(): PathGenerator = {
+  override def listen(listener: FileTreeListener): PathGenerator = {
     //list all of the files
     val initialFiles = FileUtils.listFilesAndDirs(baseFolder, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE).par.map(file => {
       FilePathEvent(getFilePath(file), getLastModified(file))
     }).seq.toSet
-    new PathGenerator(initialFiles, this)
+    new PathGenerator(initialFiles, this, listener)
   }
 
   @Loggable(value = Loggable.TRACE, limit = 500, unit = TimeUnit.MILLISECONDS, prepend = true)
