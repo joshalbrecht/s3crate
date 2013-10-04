@@ -25,7 +25,7 @@ class Historian(fileTree: FileTree,
   implicit private val context = ec
 
   //TODO: make this configurable
-  val MAX_WORKERS = 8
+  protected val MAX_WORKERS = 8
 
   protected val logger = LoggerFactory.getLogger(getClass)
 
@@ -43,7 +43,7 @@ class Historian(fileTree: FileTree,
   private val eventLock: AnyRef = new Object()
 
   //register ourselves as a listener to the file tree:
-  val eventGenerator = fileTree.listen(this)
+  private val eventGenerator = fileTree.listen(this)
   //and start listening for events:
   eventGenerator.start()
 
@@ -61,7 +61,12 @@ class Historian(fileTree: FileTree,
       isStopping = true
       pendingEvents.clear()
     }
-    //TODO: return when all current tasks have succeeded or failed
+    //return when all current tasks have succeeded or failed
+    Future {
+      while (workerCounter.get() > 0) {
+        Thread.sleep(100)
+      }
+    }
   }
 
   /**
@@ -77,6 +82,10 @@ class Historian(fileTree: FileTree,
     }
   }
 
+  /**
+   * If the event is interesting, add it to the queue.
+   * In any case, go check if there is more work to do.
+   */
   override def onNewFilePathEvent(event: FilePathEvent) {
     if (isInterestingEvent(event)) {
       eventLock.synchronized {
@@ -88,6 +97,10 @@ class Historian(fileTree: FileTree,
     }
   }
 
+  /**
+   * Start a new worker if there are any events to process and we have less than
+   * the maximum number of workers.
+   */
   protected def checkForWork() {
     eventLock.synchronized {
       if (isStopping) {
@@ -104,8 +117,8 @@ class Historian(fileTree: FileTree,
           pathProgress(event) = status
           future.onComplete({
             case Success(_) => eventLock.synchronized {
-              lastPathSuccess(event.path) = event.lastModified
               workerCounter.decrementAndGet()
+              lastPathSuccess(event.path) = event.lastModified
               //TODO: update the status?
             }
             case Failure(t) => eventLock.synchronized {
@@ -139,6 +152,15 @@ class Historian(fileTree: FileTree,
     true
   }
 
+  /**
+   * Actually processes the event.
+   *
+   * Looks at the metadata, figures out what happened, and then calls the
+   * appropriate method on the history
+   *
+   * @return A tuple of (object for watching the status, future that will be
+   *         complete when the synchronization is totally finished)
+   */
   private def handleTask(event: FilePathEvent):
                         (PathSyncStatus, Future[Unit]) = {
     val path = event.path
