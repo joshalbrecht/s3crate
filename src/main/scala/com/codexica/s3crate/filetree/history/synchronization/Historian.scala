@@ -10,6 +10,8 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import org.slf4j.LoggerFactory
+import com.jcabi.aspects.Loggable
+import java.util.concurrent.TimeUnit
 
 /**
  * Synchronize all changes from the file tree to the history.
@@ -54,6 +56,7 @@ class Historian(fileTree: FileTree,
    *
    * @return A Future that will be complete when everything is stopped.
    */
+  @Loggable(value = Loggable.INFO, limit = 100, unit = TimeUnit.MILLISECONDS, prepend = true)
   def stop(): Future[Unit] = Future {
     eventGenerator.stop()
     //clear the list of pending tasks as well.
@@ -74,6 +77,7 @@ class Historian(fileTree: FileTree,
    *         Note that this interface is not flushed out at all, and so is
    *         currently the simplest thing that makes any sense.
    */
+  @Loggable(value = Loggable.TRACE, limit = 100, unit = TimeUnit.MILLISECONDS, prepend = true)
   def status: List[String] = {
     eventLock.synchronized {
       pathProgress.map({case (event, status) => {
@@ -86,6 +90,7 @@ class Historian(fileTree: FileTree,
    * If the event is interesting, add it to the queue.
    * In any case, go check if there is more work to do.
    */
+  @Loggable(value = Loggable.DEBUG, limit = 100, unit = TimeUnit.MILLISECONDS, prepend = true)
   override def onNewFilePathEvent(event: FilePathEvent) {
     if (isInterestingEvent(event)) {
       eventLock.synchronized {
@@ -101,6 +106,7 @@ class Historian(fileTree: FileTree,
    * Start a new worker if there are any events to process and we have less than
    * the maximum number of workers.
    */
+  @Loggable(value = Loggable.TRACE, limit = 100, unit = TimeUnit.MILLISECONDS, prepend = true)
   protected def checkForWork() {
     eventLock.synchronized {
       if (isStopping) {
@@ -161,6 +167,7 @@ class Historian(fileTree: FileTree,
    * @return A tuple of (object for watching the status, future that will be
    *         complete when the synchronization is totally finished)
    */
+  @Loggable(value = Loggable.TRACE, limit = 100, unit = TimeUnit.MILLISECONDS, prepend = true)
   private def handleTask(event: FilePathEvent):
                         (PathSyncStatus, Future[Unit]) = {
     val path = event.path
@@ -203,6 +210,7 @@ class Historian(fileTree: FileTree,
    * @param source The source snapshot
    * @param dest The destination snapshot
    */
+  @Loggable(value = Loggable.TRACE, limit = 100, unit = TimeUnit.MILLISECONDS, prepend = true)
   private def sync(source: FilePathState, dest: FilePathState): Future[Unit] = {
     if (source == dest) {
       Future.successful()
@@ -214,6 +222,7 @@ class Historian(fileTree: FileTree,
   /**
    * Called when the source is missing. Verify that the destination is in the deleted state
    */
+  @Loggable(value = Loggable.TRACE, limit = 100, unit = TimeUnit.MILLISECONDS, prepend = true)
   private def onSourceMissing(dest: FilePathState): Future[Unit] = {
     if (dest.exists) {
       //TODO: update the status based on what is returned? (here and below)
@@ -226,10 +235,12 @@ class Historian(fileTree: FileTree,
   /**
    * Called when the destination file is missing. Just go create it.
    */
+  @Loggable(value = Loggable.TRACE, limit = 100, unit = TimeUnit.MILLISECONDS, prepend = true)
   private def onDestMissing(source: FilePathState): Future[Unit] = {
     writeToDest(source)
   }
 
+  @Loggable(value = Loggable.TRACE, limit = 100, unit = TimeUnit.MILLISECONDS, prepend = true)
   private def writeToDest(source: FilePathState): Future[Unit] = {
     if (source.exists) {
       treeHistory.update(source.path, fileTree).map(x => Unit)
