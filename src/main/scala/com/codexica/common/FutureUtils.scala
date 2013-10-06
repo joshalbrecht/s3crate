@@ -2,6 +2,9 @@ package com.codexica.common
 
 import scala.concurrent.{Promise, ExecutionContext, Future}
 import scala.collection.generic.CanBuildFrom
+import org.apache.commons.lang3.concurrent.BasicThreadFactory
+import java.util.concurrent.Executors
+import org.slf4j.LoggerFactory
 
 /**
  * Helper functions for Futures
@@ -40,5 +43,21 @@ object FutureUtils {
       case _ if n > 1 => retry(n - 1)(fn)
       case f => f
     }
+  }
+
+  def makeExecutor(name: String, size: Int): ExecutionContext = {
+    val failLogger = LoggerFactory.getLogger(s"$name-failure")
+    ExecutionContext.fromExecutorService(
+      Executors.newFixedThreadPool(size, new BasicThreadFactory.Builder()
+        .daemon(true)
+        .namingPattern(s"$name-pool-%d")
+        .uncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+          def uncaughtException(t: Thread, e: Throwable) {
+            failLogger.error(s"Thread $t failed because of $e", e)
+          }
+        })
+        .build()
+      )
+    )
   }
 }

@@ -1,18 +1,17 @@
 package com.codexica.s3crate
 
-import scala.concurrent.{Future, Await}
-import scala.util.{Failure, Success}
-import com.google.common.base.Throwables
-import akka.actor.{ActorSystem, Props}
-import com.codexica.s3crate.filetree.history.synchronization.{Historian}
-import com.codexica.s3crate.filetree.history.snapshotstore.s3.{S3, S3Interface, S3Module, S3FileHistory}
-import com.codexica.s3crate.filetree.local.LinuxFileTree
-import java.io.File
-import scala.concurrent.duration.Duration
-import com.typesafe.config.ConfigFactory
-import org.apache.commons.io.FileUtils
-import com.google.inject.{Key, Guice}
 import com.codexica.s3crate.filetree.history.FileTreeHistory
+import com.codexica.s3crate.filetree.history.snapshotstore.s3.{S3, S3Module}
+import com.codexica.s3crate.filetree.history.synchronization.Historian
+import com.codexica.s3crate.filetree.local.LinuxFileTree
+import com.google.inject.{TypeLiteral, Key, Guice}
+import java.io.File
+import org.apache.commons.io.FileUtils
+import scala.concurrent.{Await, ExecutionContext, Future}
+import java.util.concurrent.Executors
+import com.codexica.common.{FutureUtils, LogUtils}
+import org.slf4j.LoggerFactory
+import scala.concurrent.duration.Duration
 
 object S3Crate {
 
@@ -22,40 +21,51 @@ object S3Crate {
   }
 
   def bootAndBlock() {
-    onStartup()
+    LogUtils.waitForStupidLogging()
+    val logger = LoggerFactory.getLogger(getClass)
 
-    //TODO: parameterize and inject these
-    val direction: SynchronizationDirection = Upload()
-    val s3Prefix = "test/cowdata"
-    val baseFolder = new File("/home/cow/data")
+    try {
+      onStartup()
 
-    val injector = Guice.createInjector(new ActorModule(), new S3Module(s3Prefix))
-    val s3InitializedFuture = injector.getInstance(Key.get(classOf[Future[FileTreeHistory]], classOf[S3]))
-    val actorSystem = injector.getInstance(classOf[ActorSystem])
+      //TODO: parameterize and inject these
+      val direction: SynchronizationDirection = Upload()
+      val s3Prefix = "test/cowdata"
+      val baseFolder = new File("/home/cow/data")
+      //TODO: before this point, validate that the folder exists, is a folder, etc? Perhaps the constructor should check that, and s3 should check that it can connect too?
 
-    //TODO:  maybe make this a default context or something? Or maybe use it below?
-    val cpuOperations = actorSystem.dispatchers.lookup("contexts.cpu-operations")
-    val fileOperations = actorSystem.dispatchers.lookup("contexts.filesystem-operations")
-    val fileTree = new LinuxFileTree(baseFolder, fileOperations)
-    implicit val ec = actorSystem.dispatchers.defaultGlobalDispatcher
-    s3InitializedFuture.map(history => {
-      direction match {
-        case Upload() => {
-          val historian = new Historian(fileTree, history, ec)
-          while (true) {
-            println(historian.status)
-            Thread.sleep(5 * 1000)
+      val injector = Guice.createInjector(new S3Module(s3Prefix))
+      val s3InitializedFuture = injector
+        .getInstance(Key.get(new TypeLiteral[Future[FileTreeHistory]](){}, classOf[S3]))
+
+      implicit val ec = FutureUtils.makeExecutor("bootAndBlock", 1)
+      val fileOperations = FutureUtils.makeExecutor("filesystem", 16)
+      val historianContext = FutureUtils.makeExecutor("historian", 8)
+      val fileTree = new LinuxFileTree(baseFolder, fileOperations)
+      val finalResult = s3InitializedFuture.map(history => {
+        direction match {
+          case Upload() => {
+            val historian = new Historian(fileTree, history, historianContext)
+            while (true) {
+              println(historian.status)
+              Thread.sleep(5 * 1000)
+            }
           }
+          case Download() => throw new NotImplementedError()
         }
-        case Download() => throw new NotImplementedError()
+      })
+      Await.result(finalResult, Duration.Inf)
+    } catch {
+      case t: Throwable => {
+        logger.error("S3Crate failed!", t)
       }
-    })
+    }
   }
 
   def main(args: Array[String]) {
     //TODO: set this in a more general way
     //very first thing we do is set the configuration location so that config can be loaded
-    System.setProperty("config.resource", new File(FileUtils.getUserDirectory, "aws.conf").getAbsolutePath)
+    val configPath = new File(FileUtils.getUserDirectory, "aws.conf").getAbsolutePath
+    System.setProperty("config.file", configPath)
 
     bootAndBlock()
   }

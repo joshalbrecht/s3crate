@@ -6,6 +6,8 @@ import com.codexica.s3crate.filetree.{ReadableFileTree, FilePath, WritableFileTr
 import scala.concurrent.{ExecutionContext, Future}
 import scala.Some
 import com.codexica.common.FutureUtils
+import com.jcabi.aspects.Loggable
+import java.util.concurrent.TimeUnit
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -22,6 +24,7 @@ protected[s3] class S3FileHistory private(store: S3SnapshotStore)(implicit val e
   //mapping from version to associated metadata
   private val allSnapshots = scala.collection.mutable.HashMap.empty[RemoteFileSystemTypes.SnapshotId, FileSnapshot]
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   private def init(): Future[Unit] = {
     store.clear().flatMap(_ => {
       store.list().flatMap(snapshotIds => {
@@ -62,12 +65,14 @@ protected[s3] class S3FileHistory private(store: S3SnapshotStore)(implicit val e
     })
   }
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   def metadata(path: FilePath): Future[Option[FileSnapshot]] = Future {
     snapshotLock.synchronized {
       latestSnapshots.get(path).map(id => allSnapshots(id))
     }
   }
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   def update(path: FilePath, fileTree: ReadableFileTree): Future[FileSnapshot] = {
     fileTree.metadata(path).flatMap(pathState => {
       store.saveBlob(() => {
@@ -87,16 +92,22 @@ protected[s3] class S3FileHistory private(store: S3SnapshotStore)(implicit val e
     })
   }
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   def delete(path: FilePath): Future[FileSnapshot] = throw new NotImplementedError()
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   def readLatest(path: FilePath): Future[FileSnapshot] = throw new NotImplementedError()
 
+  @Loggable(value = Loggable.DEBUG, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   def download(snapshot: FileSnapshot, output: WritableFileTree): Future[FilePathState] = {
     throw new NotImplementedError()
   }
 
+  @Loggable(value = Loggable.TRACE, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   protected def previousVersion(path: FilePath): Option[FileSnapshot] = {
-    throw new NotImplementedError()
+    snapshotLock.synchronized {
+      allSnapshots(latestSnapshots(path)).previous.map(id => allSnapshots(id))
+    }
   }
 }
 

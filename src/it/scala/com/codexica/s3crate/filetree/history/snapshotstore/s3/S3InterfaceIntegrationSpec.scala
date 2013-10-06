@@ -1,6 +1,6 @@
 package com.codexica.s3crate.filetree.history.snapshotstore.s3
 
-import com.codexica.common.{InaccessibleDataError, SafeLogSpecification, SafeInputStream}
+import com.codexica.common.{SafeLogSpecification, InaccessibleDataError, SafeInputStream}
 import com.google.inject.Guice
 import java.io.{IOException, InputStream, File, ByteArrayInputStream}
 import java.lang.IllegalArgumentException
@@ -10,9 +10,6 @@ import org.jets3t.service.utils.ServiceUtils
 import org.joda.time.{DateTimeZone, DateTime}
 import org.slf4j.LoggerFactory
 import org.specs2.mutable.After
-import com.tzavellas.sse.guice.ScalaModule
-import scala.concurrent.ExecutionContext
-import com.codexica.s3crate.ActorModule
 
 /**
  * @author Josh Albrecht (joshalbrecht@gmail.com)
@@ -28,7 +25,7 @@ class S3InterfaceIntegrationSpec extends SafeLogSpecification {
 
     //load the special configuration with login details
     System.setProperty("config.resource", "/integration.conf")
-    val injector = Guice.createInjector(new S3Module(prefix), new ActorModule())
+    val injector = Guice.createInjector(new S3Module(prefix))
     val s3 = injector.getInstance(classOf[S3Interface])
 
     //make sure we delete everything when the tests are done

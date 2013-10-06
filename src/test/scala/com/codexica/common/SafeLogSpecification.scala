@@ -15,15 +15,6 @@ import ch.qos.logback.classic.LoggerContext
  */
 class SafeLogSpecification extends Specification {
   trait BaseContext extends Scope {
-    var isLogInitializationDone = false
-    while (!isLogInitializationDone) {
-      LoggerFactory.getILoggerFactory match {
-        case logger: SubstituteLoggerFactory => Thread.sleep(100)
-        case logger: LoggerContext => {
-          //Note: if you want to debug where the logging configuration is coming from, call: StatusPrinter.print(logger)
-          isLogInitializationDone = true
-        }
-      }
-    }
+    LogUtils.waitForStupidLogging()
   }
 }
