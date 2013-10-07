@@ -106,7 +106,9 @@ protected[s3] class S3FileHistory private(store: S3SnapshotStore)(implicit val e
   @Loggable(value = Loggable.TRACE, limit = 200, unit = TimeUnit.MILLISECONDS, prepend = true)
   protected def previousVersion(path: FilePath): Option[FileSnapshot] = {
     snapshotLock.synchronized {
-      allSnapshots(latestSnapshots(path)).previous.map(id => allSnapshots(id))
+      latestSnapshots.get(path).flatMap(id => {
+        allSnapshots(id).previous.map(id => allSnapshots(id))
+      })
     }
   }
 }

@@ -34,24 +34,29 @@ class S3FileHistorySpec extends SafeLogSpecification {
     store.clear() returns Future {}
     val id1 = UUID.randomUUID()
     val id2 = UUID.randomUUID()
+    val prevVersion = UUID.randomUUID()
     store.list() returns Future {
-      Set(id1, id2)
+      Set(id1, id2, prevVersion)
     }
     val blob = DataBlob("remote/path", None, NoCompression())
-    val filePath = FilePath("local/path1")
+    val snapshot1 = FileSnapshot(id1, blob, FilePathState(FilePath("local/path1"), true, None), None)
     store.read(id1) returns Future {
-      FileSnapshot(id1, blob, FilePathState(filePath, true, None), None)
+      snapshot1
     }
+    val filePath = FilePath("local/path2")
     store.read(id2) returns Future {
-      FileSnapshot(id2, blob, FilePathState(FilePath("local/path2"), true, None), None)
+      FileSnapshot(id2, blob, FilePathState(filePath, true, None), Option(prevVersion))
     }
-    val fileHistory = S3FileHistory.initialize(store, context)
+    store.read(prevVersion) returns Future {
+      FileSnapshot(prevVersion, blob, FilePathState(filePath, true, None), None)
+    }
+    val fileHistoryFuture = S3FileHistory.initialize(store, context)
     val fileTree = mock[ReadableFileTree]
   }
 
   "initializing the file history" should {
     "generally succeed" in new Context {
-      Await.result(fileHistory, Duration.Inf) must beAnInstanceOf[S3FileHistory]
+      Await.result(fileHistoryFuture, Duration.Inf) must beAnInstanceOf[S3FileHistory]
     }
     "propagate appropriate failures" in new Context {
       val failStore = mock[ExtendedS3SnapshotStore]
@@ -65,19 +70,14 @@ class S3FileHistorySpec extends SafeLogSpecification {
 
   "reading metadata" should {
     "return the correct snapshot data" in new Context {
-      fileHistory.flatMap(history => {
+    Await.result(fileHistoryFuture.flatMap(history => {
         history.metadata(FilePath("local/path1"))
-      })
-      Await.result(fileHistory, Duration.Inf)
+      }), Duration.Inf) must be equalTo Option(snapshot1)
     }
   }
 
-  //TODO: make a test of a filepath that doesn't exist yet
-
-  //TODO: test when there are previous versions that things work out correctly (and updates most recent version?)
-
   "calling update" should {
-    "save the new file snapshot" in new Context {
+    "update an existing snapshot" in new Context {
       val pathState = FilePathState(filePath,
         true,
         Option(FileMetaData(FileType(),
@@ -88,14 +88,38 @@ class S3FileHistorySpec extends SafeLogSpecification {
           Set(),
           None,
           false)))
-      val snapshot = FileSnapshot(UUID.randomUUID(), blob, pathState, None)
+      val snapshot = FileSnapshot(UUID.randomUUID(), blob, pathState, Option(prevVersion))
       fileTree.metadata(Matchers.eq(filePath)) returns Future {
         pathState
       }
       store.saveBlob(any[() => SafeInputStream]) returns Future { blob }
-      store.saveSnapshot(filePath, pathState, blob, None) returns Future { snapshot }
-      Await.result(fileHistory, Duration.Inf).update(filePath, fileTree)
-      there was one(store).saveSnapshot(filePath, pathState, blob, None)
+      store.saveSnapshot(filePath, pathState, blob, Option(prevVersion)) returns Future { snapshot }
+      val result = Await.result(fileHistoryFuture, Duration.Inf).update(filePath, fileTree)
+      Await.result(result, Duration.Inf) must be equalTo snapshot
+      there was one(store).saveSnapshot(filePath, pathState, blob, Option(prevVersion))
+    }
+
+    "save a new file snapshot" in new Context {
+      val newFilePath = FilePath("some/other/place")
+      val pathState = FilePathState(newFilePath,
+        true,
+        Option(FileMetaData(FileType(),
+          34523,
+          new DateTime(),
+          "owner",
+          "group",
+          Set(),
+          None,
+          false)))
+      val snapshot = FileSnapshot(UUID.randomUUID(), blob, pathState, None)
+      fileTree.metadata(Matchers.eq(newFilePath)) returns Future {
+        pathState
+      }
+      store.saveBlob(any[() => SafeInputStream]) returns Future { blob }
+      store.saveSnapshot(newFilePath, pathState, blob, None) returns Future { snapshot }
+      val result = Await.result(fileHistoryFuture, Duration.Inf).update(newFilePath, fileTree)
+      Await.result(result, Duration.Inf) must be equalTo snapshot
+      there was one(store).saveSnapshot(newFilePath, pathState, blob, None)
     }
   }
 
